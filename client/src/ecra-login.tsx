@@ -38,9 +38,21 @@ const DESTAQUES = [
 const MARCA = (
   <div className="acesso-logotipo">
     <svg viewBox="0 0 48 48" aria-hidden="true">
-      <rect width="48" height="48" rx="14" fill="#f3efe4" />
-      <path d="M24 36c-8-6-12-12-12-18a8 8 0 0 1 14-5 8 8 0 0 1 14 5c0 6-4 12-12 18z" fill="#1f6b45" />
-      <path d="M24 34V16" stroke="#f3efe4" strokeWidth="2" />
+      <defs>
+        <linearGradient id="acesso-marca-fundo" x1="6" y1="2" x2="42" y2="46" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#2a9a5c" />
+          <stop offset="1" stopColor="#0f3d28" />
+        </linearGradient>
+      </defs>
+      <rect width="48" height="48" rx="14" fill="url(#acesso-marca-fundo)" />
+      <path
+        d="M24 36.5c-7-5.2-11-11-11-16.8C13 13.5 17.2 9.5 22.2 9.5c1.9 0 3.6.7 4.8 1.8 1.2-1.1 2.9-1.8 4.8-1.8 5 0 9.2 4 9.2 10.2 0 5.8-4 11.6-11 16.8L24 39.5Z"
+        fill="#f3faf6"
+      />
+      <path d="M24 34V14.8" stroke="#1a7a4c" strokeWidth="2.1" strokeLinecap="round" />
+      <path d="M24 21.5c2.8-1.6 5-3.8 6.2-6.4" stroke="#1a7a4c" strokeWidth="1.7" strokeLinecap="round" fill="none" opacity="0.5" />
+      <circle cx="34.8" cy="13.2" r="3.4" fill="#8ef0b8" />
+      <circle cx="34.8" cy="13.2" r="1.4" fill="#0f3d28" />
     </svg>
     <div>
       <strong>FitoSmart</strong>

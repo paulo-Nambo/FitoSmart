@@ -1,6 +1,6 @@
 import { Pool, type QueryResultRow } from 'pg';
 import { CONTAS_INICIAIS, type Conta } from './credenciais';
-import type { Ocorrencia, Perfil } from './tipos';
+import type { ContaPublica, Ocorrencia, Perfil } from './tipos';
 
 const ESQUEMA = `
 CREATE TABLE IF NOT EXISTS utilizadores (
@@ -18,11 +18,29 @@ CREATE TABLE IF NOT EXISTS ocorrencias (
   confianca integer NOT NULL,
   status text NOT NULL CHECK (status IN ('TRIADA', 'ENCAMINHADA', 'VALIDADA')),
   autor_email text,
-  criada_em timestamptz NOT NULL
+  criada_em timestamptz NOT NULL,
+  imagens text[] NOT NULL DEFAULT '{}'
 );
 `;
 
 const ocorrenciasMemoria: Ocorrencia[] = [];
+
+function copiarContas(): Conta[] {
+  return CONTAS_INICIAIS.map((conta) => ({
+    email: conta.email,
+    perfil: conta.perfil,
+    hash: Buffer.from(conta.hash),
+  }));
+}
+
+let utilizadoresMemoria: Conta[] = copiarContas();
+
+export class ContaDuplicada extends Error {
+  constructor() {
+    super('Já existe uma conta com este email');
+    this.name = 'ContaDuplicada';
+  }
+}
 
 let pool: Pool | null = null;
 
@@ -46,6 +64,7 @@ function obterPool(): Pool | null {
 
 export function reporEstado(): void {
   ocorrenciasMemoria.length = 0;
+  utilizadoresMemoria = copiarContas();
 }
 
 function mapear(linha: QueryResultRow): Ocorrencia {
@@ -59,10 +78,11 @@ function mapear(linha: QueryResultRow): Ocorrencia {
     status: linha.status as Ocorrencia['status'],
     autorEmail: linha.autor_email === null || linha.autor_email === undefined ? null : String(linha.autor_email),
     criadaEm: new Date(linha.criada_em as string).toISOString(),
+    imagens: Array.isArray(linha.imagens) ? linha.imagens.map(String) : [],
   };
 }
 
-const COLUNAS = `id, cultura, sintomas, latitude, longitude, confianca, status, autor_email, criada_em`;
+const COLUNAS = `id, cultura, sintomas, latitude, longitude, confianca, status, autor_email, criada_em, imagens`;
 
 export async function criarOcorrencia(ocorrencia: Ocorrencia): Promise<void> {
   const ligacao = obterPool();
@@ -71,7 +91,7 @@ export async function criarOcorrencia(ocorrencia: Ocorrencia): Promise<void> {
     return;
   }
   await ligacao.query(
-    `INSERT INTO ocorrencias (${COLUNAS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    `INSERT INTO ocorrencias (${COLUNAS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       ocorrencia.id,
       ocorrencia.cultura,
@@ -82,6 +102,7 @@ export async function criarOcorrencia(ocorrencia: Ocorrencia): Promise<void> {
       ocorrencia.status,
       ocorrencia.autorEmail,
       ocorrencia.criadaEm,
+      ocorrencia.imagens,
     ],
   );
 }
@@ -119,6 +140,16 @@ export async function ultimaEncaminhada(): Promise<Ocorrencia | undefined> {
   return linha ? mapear(linha) : undefined;
 }
 
+export async function acrescentarImagem(id: string, nome: string): Promise<void> {
+  const ligacao = obterPool();
+  if (!ligacao) {
+    const alvo = ocorrenciasMemoria.find((item) => item.id === id);
+    if (alvo) alvo.imagens.push(nome);
+    return;
+  }
+  await ligacao.query(`UPDATE ocorrencias SET imagens = imagens || ARRAY[$2]::text[] WHERE id = $1`, [id, nome]);
+}
+
 export async function marcarValidada(id: string): Promise<void> {
   const ligacao = obterPool();
   if (!ligacao) {
@@ -129,9 +160,56 @@ export async function marcarValidada(id: string): Promise<void> {
   await ligacao.query(`UPDATE ocorrencias SET status = 'VALIDADA' WHERE id = $1`, [id]);
 }
 
+export async function listarUtilizadores(): Promise<ContaPublica[]> {
+  const ligacao = obterPool();
+  if (!ligacao) {
+    return utilizadoresMemoria
+      .map((conta) => ({ email: conta.email, perfil: conta.perfil }))
+      .sort((a, b) => a.email.localeCompare(b.email));
+  }
+  const resultado = await ligacao.query(`SELECT email, perfil FROM utilizadores ORDER BY email`);
+  return resultado.rows.map((linha) => ({
+    email: String(linha.email),
+    perfil: linha.perfil === 'TECNICO' ? 'TECNICO' : 'AGRICULTOR',
+  }));
+}
+
+export async function criarUtilizador(conta: Conta): Promise<void> {
+  const ligacao = obterPool();
+  if (!ligacao) {
+    if (utilizadoresMemoria.some((item) => item.email === conta.email)) throw new ContaDuplicada();
+    utilizadoresMemoria.push(conta);
+    return;
+  }
+  try {
+    await ligacao.query(`INSERT INTO utilizadores (email, hash, perfil) VALUES ($1, $2, $3)`, [
+      conta.email,
+      conta.hash,
+      conta.perfil,
+    ]);
+  } catch (erro) {
+    if (typeof erro === 'object' && erro !== null && 'code' in erro && erro.code === '23505') {
+      throw new ContaDuplicada();
+    }
+    throw erro;
+  }
+}
+
+export async function actualizarPerfil(email: string, perfil: Perfil): Promise<boolean> {
+  const ligacao = obterPool();
+  if (!ligacao) {
+    const alvo = utilizadoresMemoria.find((conta) => conta.email === email);
+    if (!alvo) return false;
+    alvo.perfil = perfil;
+    return true;
+  }
+  const resultado = await ligacao.query(`UPDATE utilizadores SET perfil = $2 WHERE email = $1`, [email, perfil]);
+  return (resultado.rowCount ?? 0) > 0;
+}
+
 export async function procurarUtilizador(email: string): Promise<Conta | undefined> {
   const ligacao = obterPool();
-  if (!ligacao) return CONTAS_INICIAIS.find((conta) => conta.email === email);
+  if (!ligacao) return utilizadoresMemoria.find((conta) => conta.email === email);
   const resultado = await ligacao.query(
     `SELECT email, hash, perfil FROM utilizadores WHERE email = $1`,
     [email],
@@ -172,6 +250,7 @@ export async function prepararBase(): Promise<void> {
   const ligacao = obterPool();
   if (!ligacao) return;
   await ligacao.query(ESQUEMA);
+  await ligacao.query(`ALTER TABLE ocorrencias ADD COLUMN IF NOT EXISTS imagens text[] NOT NULL DEFAULT '{}'`);
   await ligacao.query(
     `INSERT INTO utilizadores (email, hash, perfil)
      VALUES ($1, $2, $3), ($4, $5, $6)

@@ -9,7 +9,10 @@
     "noEmit": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@/*": ["./client/src/*"]
+    }
   },
   "include": ["client"]
 }

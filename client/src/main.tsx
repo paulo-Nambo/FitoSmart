@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './styles.css';
+import './grafico.css';
 
 const raiz = document.getElementById('root');
 if (!raiz) throw new Error('Elemento #root em falta');

@@ -6,12 +6,16 @@ import {
   listarOcorrencias,
   marcarValidada,
   obterOcorrencia,
-  reporEstado,
+  reporEstado as reporBase,
   ultimaEncaminhada,
 } from './base';
+import { reporImagens } from './imagens';
 import type { CamposOcorrencia, EstadoOcorrencia, Ocorrencia, ResultadoTriagem } from './tipos';
 
-export { reporEstado };
+export function reporEstado(): void {
+  reporBase();
+  reporImagens();
+}
 
 export const LIMIAR_TRIAGEM = 60;
 
@@ -105,6 +109,7 @@ export async function registrarOcorrenciaHandler(req: Request, res: Response): P
     status: triagem.status,
     autorEmail: identidade?.email ?? null,
     criadaEm: new Date().toISOString(),
+    imagens: [],
   };
   try {
     await criarOcorrencia(ocorrencia);

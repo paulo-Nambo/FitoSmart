@@ -1,5 +1,10 @@
 export type Perfil = 'AGRICULTOR' | 'TECNICO';
 
+export interface ContaPublica {
+  email: string;
+  perfil: Perfil;
+}
+
 export type EstadoOcorrencia = 'TRIADA' | 'ENCAMINHADA' | 'VALIDADA';
 
 export interface Ocorrencia {
@@ -12,6 +17,7 @@ export interface Ocorrencia {
   status: EstadoOcorrencia;
   autorEmail: string | null;
   criadaEm: string;
+  imagens: string[];
 }
 
 export interface CamposOcorrencia {

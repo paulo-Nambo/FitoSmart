@@ -9,7 +9,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "paths": {
+      "@/*": ["./client/src/*"]
+    }
   },
   "include": ["src"]
 }

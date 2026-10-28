@@ -1,0 +1,43 @@
+{
+  "name": "fitosmart",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MVP de alerta precoce e apoio à decisão em fitossanidade (UEM).",
+  "scripts": {
+    "dev": "concurrently -n api,web npm:dev:api npm:dev:web",
+    "dev:api": "tsx watch src/server.ts",
+    "dev:web": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "test": "jest --coverage --verbose"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
+    "@types/jest": "^29.5.14",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@types/supertest": "^6.0.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.2.0",
+    "jest": "^29.7.0",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2",
+    "vite": "^6.3.5"
+  }
+}

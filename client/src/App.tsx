@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { listarOcorrencias, type Ocorrencia } from './api';
 import { EcraLogin } from './ecra-login';
-import { EcraOcorrencia } from './ecra-ocorrencia';
-import { EcraTecnico } from './ecra-tecnico';
 import { limparSessao, lerSessao, type Sessao } from './sessao';
+import { useInactividade } from './use-inactividade';
+
+const importarOcorrencia = () => import('./ecra-ocorrencia');
+const importarTecnico = () => import('./ecra-tecnico');
+
+const EcraOcorrencia = lazy(() => importarOcorrencia().then((modulo) => ({ default: modulo.EcraOcorrencia })));
+const EcraTecnico = lazy(() => importarTecnico().then((modulo) => ({ default: modulo.EcraTecnico })));
+
+const RESERVA = <p className="nota">A carregar…</p>;
 
 const MARCA = (
   <div className="marca">
@@ -19,9 +26,30 @@ const MARCA = (
   </div>
 );
 
+function preverEcra(perfil: Sessao['perfil']) {
+  if (perfil === 'AGRICULTOR') void importarOcorrencia();
+  else void importarTecnico();
+}
+
+function sessaoInicial(): Sessao | null {
+  if (new URLSearchParams(window.location.search).get('idle') === '1') {
+    limparSessao();
+    return null;
+  }
+  return lerSessao();
+}
+
 export function App() {
-  const [sessao, setSessao] = useState<Sessao | null>(() => lerSessao());
+  const [sessao, setSessao] = useState<Sessao | null>(sessaoInicial);
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
+  const autenticado = sessao !== null;
+
+  const expirar = useCallback(() => {
+    limparSessao();
+    window.location.assign('/?idle=1');
+  }, []);
+
+  useInactividade(autenticado, expirar);
 
   useEffect(() => {
     const token = sessao?.token;
@@ -42,50 +70,47 @@ export function App() {
     };
   }, [sessao?.token]);
 
-  function sair() {
+  const sair = useCallback(() => {
     limparSessao();
+    if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
     setSessao(null);
     setOcorrencias([]);
+  }, []);
+
+  const registar = useCallback((ocorrencia: Ocorrencia) => {
+    setOcorrencias((atual) => [...atual, ocorrencia]);
+  }, []);
+
+  const validar = useCallback((id: string) => {
+    setOcorrencias((atual) => atual.map((item) => (item.id === id ? { ...item, status: 'VALIDADA' } : item)));
+  }, []);
+
+  if (sessao === null) {
+    return <EcraLogin aoEntrar={setSessao} aoPrever={preverEcra} />;
   }
 
   return (
     <div className="pagina">
       <header className="topo">
         {MARCA}
-        {sessao ? (
-          <div className="sessao">
-            <span>
-              {sessao.email}
-              <small>{sessao.perfil}</small>
-            </span>
-            <button type="button" className="secundario" onClick={sair}>
-              Sair
-            </button>
-          </div>
-        ) : null}
+        <div className="sessao">
+          <span>
+            {sessao.email}
+            <small>{sessao.perfil}</small>
+          </span>
+          <button type="button" className="secundario" onClick={sair}>
+            Sair
+          </button>
+        </div>
       </header>
       <main>
-        {sessao === null ? <EcraLogin aoEntrar={setSessao} /> : null}
-        {sessao?.perfil === 'AGRICULTOR' ? (
-          <EcraOcorrencia
-            token={sessao.token}
-            ocorrencias={ocorrencias}
-            aoRegistar={(ocorrencia) => {
-              setOcorrencias((atual) => [...atual, ocorrencia]);
-            }}
-          />
-        ) : null}
-        {sessao?.perfil === 'TECNICO' ? (
-          <EcraTecnico
-            token={sessao.token}
-            ocorrencias={ocorrencias}
-            aoValidar={(id) => {
-              setOcorrencias((atual) =>
-                atual.map((item) => (item.id === id ? { ...item, status: 'VALIDADA' } : item)),
-              );
-            }}
-          />
-        ) : null}
+        <Suspense fallback={RESERVA}>
+          {sessao.perfil === 'AGRICULTOR' ? (
+            <EcraOcorrencia token={sessao.token} ocorrencias={ocorrencias} aoRegistar={registar} />
+          ) : (
+            <EcraTecnico token={sessao.token} ocorrencias={ocorrencias} aoValidar={validar} />
+          )}
+        </Suspense>
       </main>
     </div>
   );

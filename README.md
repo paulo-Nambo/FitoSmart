@@ -6,6 +6,7 @@ MVP de alerta precoce e apoio à decisão em fitossanidade, alinhado com o plano
 
 - Front-end: React + TypeScript (Vite), formulários com estado local
 - Back-end: Node.js + Express + TypeScript
+- Base de dados: PostgreSQL (`DATABASE_URL` no `.env`)
 - Testes: Jest + Supertest
 - CI: GitHub Actions (`.github/workflows/test.yml`)
 

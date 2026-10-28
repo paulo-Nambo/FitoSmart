@@ -1,27 +1,10 @@
-import { scryptSync, timingSafeEqual } from 'crypto';
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { procurarUtilizador } from './base';
+import { HASH_INEXISTENTE, senhasIguais } from './credenciais';
 import type { Perfil } from './tipos';
 
-const SAL_DEMO = 'fitosmart-demo';
 const ALGORITMO = 'HS256' as const;
-
-interface Utilizador {
-  email: string;
-  hash: Buffer;
-  perfil: Perfil;
-}
-
-function hashSenha(senha: string): Buffer {
-  return scryptSync(senha, SAL_DEMO, 32);
-}
-
-const utilizadores: Utilizador[] = [
-  { email: 'agricultor@uem.mz', hash: hashSenha('123456'), perfil: 'AGRICULTOR' },
-  { email: 'tecnico@uem.mz', hash: hashSenha('123456'), perfil: 'TECNICO' },
-];
-
-const hashInexistente = hashSenha('senha-inexistente');
 
 export function emailValido(email: string): boolean {
   if (typeof email !== 'string') return false;
@@ -42,11 +25,6 @@ function segredoJwt(): string {
     throw new Error('JWT_SECRET em falta ou demasiado curto');
   }
   return segredo;
-}
-
-function senhasIguais(senha: string, hash: Buffer): boolean {
-  const calculado = hashSenha(senha);
-  return timingSafeEqual(calculado, hash);
 }
 
 export interface Identidade {
@@ -80,7 +58,7 @@ export function identificarPedido(req: Request): Identidade | null {
   return null;
 }
 
-export function loginHandler(req: Request, res: Response): void {
+export async function loginHandler(req: Request, res: Response): Promise<void> {
   const emailBruto = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const senha = typeof req.body?.senha === 'string' ? req.body.senha : '';
 
@@ -89,8 +67,14 @@ export function loginHandler(req: Request, res: Response): void {
     return;
   }
 
-  const utilizador = utilizadores.find((item) => item.email === emailBruto);
-  const hash = utilizador ? utilizador.hash : hashInexistente;
+  let utilizador;
+  try {
+    utilizador = await procurarUtilizador(emailBruto);
+  } catch {
+    res.status(500).json({ erro: 'Erro interno' });
+    return;
+  }
+  const hash = utilizador ? utilizador.hash : HASH_INEXISTENTE;
   const confere = senhasIguais(senha, hash);
 
   if (!utilizador || !confere) {

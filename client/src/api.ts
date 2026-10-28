@@ -49,8 +49,17 @@ export function entrar(email: string, senha: string) {
   });
 }
 
+const listasEmCurso = new Map<string, Promise<{ ocorrencias: Ocorrencia[] }>>();
+
 export function listarOcorrencias(token: string) {
-  return pedido<{ ocorrencias: Ocorrencia[] }>('/api/ocorrencias', {}, token);
+  const emCurso = listasEmCurso.get(token);
+  if (emCurso) return emCurso;
+
+  const consulta = pedido<{ ocorrencias: Ocorrencia[] }>('/api/ocorrencias', {}, token).finally(() => {
+    listasEmCurso.delete(token);
+  });
+  listasEmCurso.set(token, consulta);
+  return consulta;
 }
 
 export function registarOcorrencia(

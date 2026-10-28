@@ -1,5 +1,6 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { memo, useState, type FormEvent } from 'react';
 import { registarOcorrencia, type Ocorrencia } from './api';
+import { CartaoOcorrencia } from './cartao-ocorrencia';
 
 const CULTURAS = ['Milho', 'Mandioca', 'Feijão', 'Tomate'] as const;
 
@@ -10,7 +11,13 @@ const SINTOMAS = [
   { id: 'pragas_visiveis', rotulo: 'Pragas visíveis' },
 ] as const;
 
-const ROTULOS_SINTOMA = Object.fromEntries(SINTOMAS.map((item) => [item.id, item.rotulo]));
+const NOTA_FICHA = (
+  <p className="nota">
+    A ficha base compara os sintomas com manchas amarelas e folhas secas. Abaixo de 60% o caso segue para um técnico.
+  </p>
+);
+
+const LISTA_VAZIA = <p className="nota">Ainda não há registos nesta sessão.</p>;
 
 interface EcraOcorrenciaProps {
   token: string;
@@ -18,9 +25,26 @@ interface EcraOcorrenciaProps {
   aoRegistar: (ocorrencia: Ocorrencia, mensagem?: string) => void;
 }
 
-export function rotuloSintoma(id: string): string {
-  return ROTULOS_SINTOMA[id] ?? id;
-}
+const ListaOcorrencias = memo(function ListaOcorrencias({ ocorrencias }: { ocorrencias: Ocorrencia[] }) {
+  const recentes = ocorrencias.length === 0 ? ocorrencias : [...ocorrencias].reverse();
+
+  return (
+    <section className="cartao lista">
+      <h2>As suas ocorrências</h2>
+      {recentes.length === 0 ? (
+        LISTA_VAZIA
+      ) : (
+        <ul>
+          {recentes.map((item) => (
+            <li key={item.id}>
+              <CartaoOcorrencia ocorrencia={item} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+});
 
 export function EcraOcorrencia({ token, ocorrencias, aoRegistar }: EcraOcorrenciaProps) {
   const [cultura, setCultura] = useState<(typeof CULTURAS)[number]>('Milho');
@@ -73,15 +97,11 @@ export function EcraOcorrencia({ token, ocorrencias, aoRegistar }: EcraOcorrenci
     }
   }
 
-  const recentes = [...ocorrencias].reverse();
-
   return (
     <div className="grelha">
       <form className="cartao" onSubmit={submeter}>
         <h2>Nova ocorrência</h2>
-        <p className="nota">
-          A ficha base compara os sintomas com manchas amarelas e folhas secas. Abaixo de 60% o caso segue para um técnico.
-        </p>
+        {NOTA_FICHA}
         <label htmlFor="cultura">Cultura</label>
         <select
           id="cultura"
@@ -135,46 +155,7 @@ export function EcraOcorrencia({ token, ocorrencias, aoRegistar }: EcraOcorrenci
           {aEnviar ? 'A enviar…' : 'Submeter ocorrência'}
         </button>
       </form>
-      <section className="cartao lista">
-        <h2>As suas ocorrências</h2>
-        {recentes.length === 0 ? <p className="nota">Ainda não há registos nesta sessão.</p> : null}
-        {recentes.length > 0 ? (
-          <ul>
-            {recentes.map((item) => (
-              <li key={item.id}>
-                <CartaoOcorrencia ocorrencia={item} />
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
+      <ListaOcorrencias ocorrencias={ocorrencias} />
     </div>
-  );
-}
-
-export function CartaoOcorrencia({
-  ocorrencia,
-  acao,
-}: {
-  ocorrencia: Ocorrencia;
-  acao?: ReactNode;
-}) {
-  return (
-    <article className={`item estado-${ocorrencia.status.toLowerCase()}`}>
-      <header>
-        <strong>{ocorrencia.cultura}</strong>
-        <span className="selo">{ocorrencia.status}</span>
-      </header>
-      <p>{ocorrencia.sintomas.map((id) => rotuloSintoma(id)).join(', ')}</p>
-      <p className="meta">
-        Confiança {ocorrencia.confianca}% · {ocorrencia.latitude.toFixed(2)}, {ocorrencia.longitude.toFixed(2)}
-        {ocorrencia.autorEmail ? ` · ${ocorrencia.autorEmail}` : ''}
-      </p>
-      <div className="barra" aria-hidden="true">
-        <span style={{ width: `${ocorrencia.confianca}%` }} />
-      </div>
-      {ocorrencia.status === 'ENCAMINHADA' ? <p className="nota">O caso requer revisão humana.</p> : null}
-      {acao ? <div className="acoes">{acao}</div> : null}
-    </article>
   );
 }

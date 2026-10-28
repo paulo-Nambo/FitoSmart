@@ -1,7 +1,17 @@
 import { randomUUID } from 'crypto';
 import type { Request, Response } from 'express';
 import { identificarPedido } from './auth';
+import {
+  criarOcorrencia,
+  listarOcorrencias,
+  marcarValidada,
+  obterOcorrencia,
+  reporEstado,
+  ultimaEncaminhada,
+} from './base';
 import type { CamposOcorrencia, EstadoOcorrencia, Ocorrencia, ResultadoTriagem } from './tipos';
+
+export { reporEstado };
 
 export const LIMIAR_TRIAGEM = 60;
 
@@ -15,12 +25,6 @@ export const SINTOMAS_PERMITIDOS = [
 ] as const;
 
 const CULTURAS = ['Milho', 'Mandioca', 'Feijão', 'Tomate'] as const;
-
-const ocorrencias: Ocorrencia[] = [];
-
-export function reporEstado(): void {
-  ocorrencias.length = 0;
-}
 
 function numeroFinito(valor: unknown): valor is number {
   return typeof valor === 'number' && Number.isFinite(valor);
@@ -64,7 +68,7 @@ function lerSintomas(valor: unknown): string[] | null {
   return sintomas;
 }
 
-export function registrarOcorrenciaHandler(req: Request, res: Response): void {
+export async function registrarOcorrenciaHandler(req: Request, res: Response): Promise<void> {
   const sintomas = lerSintomas(req.body?.sintomas);
   if (!sintomas || sintomas.length === 0) {
     res.status(400).json({ erro: 'Deve informar ao menos 1 sintoma' });
@@ -102,7 +106,12 @@ export function registrarOcorrenciaHandler(req: Request, res: Response): void {
     autorEmail: identidade?.email ?? null,
     criadaEm: new Date().toISOString(),
   };
-  ocorrencias.push(ocorrencia);
+  try {
+    await criarOcorrencia(ocorrencia);
+  } catch {
+    res.status(500).json({ erro: 'Erro interno' });
+    return;
+  }
 
   res.status(201).json({
     ocorrencia,
@@ -112,22 +121,22 @@ export function registrarOcorrenciaHandler(req: Request, res: Response): void {
   });
 }
 
-export function listarOcorrenciasHandler(req: Request, res: Response): void {
+export async function listarOcorrenciasHandler(req: Request, res: Response): Promise<void> {
   const identidade = identificarPedido(req);
   if (!identidade) {
     res.status(401).json({ erro: 'Autenticação necessária' });
     return;
   }
 
-  const visiveis =
-    identidade.perfil === 'TECNICO' || identidade.email === null
-      ? [...ocorrencias]
-      : ocorrencias.filter((item) => item.autorEmail === identidade.email);
-
-  res.status(200).json({ ocorrencias: visiveis });
+  try {
+    const visiveis = await listarOcorrencias(identidade.perfil, identidade.email);
+    res.status(200).json({ ocorrencias: visiveis });
+  } catch {
+    res.status(500).json({ erro: 'Erro interno' });
+  }
 }
 
-export function validarTecnicoHandler(req: Request, res: Response): void {
+export async function validarTecnicoHandler(req: Request, res: Response): Promise<void> {
   const autorizacao = req.headers.authorization;
   if (typeof autorizacao === 'string' && autorizacao.startsWith('Bearer ') && !identificarPedido(req)) {
     res.status(401).json({ erro: 'Token inválido' });
@@ -141,9 +150,13 @@ export function validarTecnicoHandler(req: Request, res: Response): void {
   }
 
   const id = typeof req.body?.id === 'string' ? req.body.id : undefined;
-  const alvo = id
-    ? ocorrencias.find((item) => item.id === id)
-    : [...ocorrencias].reverse().find((item) => item.status === 'ENCAMINHADA');
+  let alvo;
+  try {
+    alvo = id ? await obterOcorrencia(id) : await ultimaEncaminhada();
+  } catch {
+    res.status(500).json({ erro: 'Erro interno' });
+    return;
+  }
 
   if (id && !alvo) {
     res.status(404).json({ erro: 'Ocorrência não encontrada' });
@@ -155,7 +168,15 @@ export function validarTecnicoHandler(req: Request, res: Response): void {
     return;
   }
 
-  if (alvo) alvo.status = 'VALIDADA';
+  if (alvo) {
+    try {
+      await marcarValidada(alvo.id);
+    } catch {
+      res.status(500).json({ erro: 'Erro interno' });
+      return;
+    }
+    alvo = { ...alvo, status: 'VALIDADA' };
+  }
 
   res.status(200).json({
     status: 'VALIDADA' as const,

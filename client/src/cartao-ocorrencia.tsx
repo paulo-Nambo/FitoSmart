@@ -100,7 +100,11 @@ const FotoAutenticada = memo(function FotoAutenticada({
 
   return (
     <span className={url ? 'item-miniatura' : 'item-miniatura a-carregar'}>
-      {url ? <img src={url} alt={alt} width={160} height={160} /> : <span className="sr-only">A carregar fotografia…</span>}
+      {url ? (
+        <img src={url} alt={alt} width={160} height={160} loading="lazy" decoding="async" />
+      ) : (
+        <span className="sr-only">A carregar fotografia…</span>
+      )}
     </span>
   );
 });
@@ -159,17 +163,23 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
       {fotos.length > 0 ? <GaleriaFotos token={token} id={ocorrencia.id} nomes={fotos} /> : null}
       <div className="item-corpo">
         <header>
-          <strong className="quebrar">{ocorrencia.cultura}</strong>
+          <strong className="quebrar" translate="no">
+            {ocorrencia.cultura}
+          </strong>
           <span className="selo">{ROTULO_ESTADO[ocorrencia.status]}</span>
         </header>
-        <ul className="item-sintomas">
-          {ocorrencia.sintomas.map((id) => (
-            <li key={id} className="item-sintoma">
-              {rotuloSintoma(id)}
-            </li>
-          ))}
-        </ul>
-        <dl className="item-factos">
+        {ocorrencia.sintomas.length > 0 ? (
+          <ul className="item-sintomas">
+            {ocorrencia.sintomas.map((id) => (
+              <li key={id} className="item-sintoma">
+                {rotuloSintoma(id)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="nota item-sem-sintomas">Sem sintomas assinalados</p>
+        )}
+        <dl className={fila ? 'item-factos item-factos-fila' : 'item-factos'}>
           {quando ? (
             <div>
               <dt>Registo</dt>
@@ -185,7 +195,13 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
           <div>
             <dt>Local</dt>
             <dd>
-              <a className="ligacao" href={mapa} target="_blank" rel="noopener noreferrer">
+              <a
+                className="ligacao"
+                href={mapa}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Abrir mapa em ${local} (nova janela)`}
+              >
                 {local}
               </a>
             </dd>
@@ -193,7 +209,7 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
           {ocorrencia.autorEmail ? (
             <div>
               <dt>{fila ? 'Agricultor' : 'Conta'}</dt>
-              <dd className="quebrar" translate="no">
+              <dd className="quebrar item-email" translate="no" title={ocorrencia.autorEmail}>
                 {ocorrencia.autorEmail}
               </dd>
             </div>
@@ -205,7 +221,7 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={ocorrencia.confianca}
-          aria-label="Confiança da triagem"
+          aria-label={`Confiança da triagem: ${PERCENTAGEM.format(ocorrencia.confianca)} por cento`}
         >
           <span style={{ width: `${ocorrencia.confianca}%` }} />
         </div>

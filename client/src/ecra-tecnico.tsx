@@ -1,4 +1,4 @@
-import { memo, startTransition, useCallback, useState } from 'react';
+import { memo, startTransition, useCallback, useId, useState } from 'react';
 import { validarOcorrencia, type Ocorrencia } from './api';
 import { CartaoOcorrencia } from './cartao-ocorrencia';
 import type { MenuId } from './barra-lateral';
@@ -48,9 +48,10 @@ const LinhaFila = memo(function LinhaFila({
               className="primario"
               disabled={pendente}
               aria-busy={pendente}
+              aria-label={`Validar ocorrência de ${ocorrencia.cultura}`}
               onClick={() => aoValidar(ocorrencia.id)}
             >
-              {pendente ? 'A validar…' : 'Validar'}
+              {pendente ? 'A validar…' : 'Validar ocorrência'}
             </button>
           ) : null
         }
@@ -72,6 +73,8 @@ const FilaTecnica = memo(function FilaTecnica({
   aValidar: string | null;
   aoValidar: (id: string) => void;
 }) {
+  const tituloId = useId();
+  const filtrosId = useId();
   const { filtro, escolher } = useFiltroEstado();
   const visiveis = porPrioridade(filtrarEstado(ocorrencias, filtro));
   const contagens = contarEstados(ocorrencias);
@@ -87,40 +90,49 @@ const FilaTecnica = memo(function FilaTecnica({
   );
 
   return (
-    <section className="fila-ecra" aria-labelledby="fila-titulo">
+    <section className="fila-ecra" aria-labelledby={tituloId}>
       <header className="fila-cabeca">
         <div className="fila-cabeca-texto">
-          <h1 id="fila-titulo" className="titulo">
+          <h1 id={tituloId} className="titulo">
             Fila técnica
           </h1>
           <p className="nota lista-total">{rotuloLista(visiveis.length, ocorrencias.length, filtro)}</p>
         </div>
         {pendentes > 0 ? (
-          <p className="fila-badge" aria-label={`${pendentes} casos por validar`}>
+          <p className="fila-badge" aria-live="polite">
             <span className="fila-badge-ponto" aria-hidden="true" />
             {pendentes === 1 ? '1 por validar' : `${pendentes} por validar`}
           </p>
         ) : (
-          <p className="fila-badge fila-badge-ok">Fila em dia</p>
+          <p className="fila-badge fila-badge-ok" aria-live="polite">
+            Fila em dia
+          </p>
         )}
       </header>
 
-      <div className="fila-ferramentas">
+      <div className="fila-ferramentas" id={filtrosId}>
         <BarraFiltro filtro={filtro} aoEscolher={escolherFiltro} contagens={contagens} />
       </div>
 
-      {erro ? (
-        <p className="alerta" role="alert">
-          {erro}
-        </p>
-      ) : null}
+      <div className="fila-estado" aria-live="polite" aria-atomic="true">
+        {erro ? (
+          <p className="alerta" role="alert">
+            {erro} Tente validar de novo.
+          </p>
+        ) : null}
+      </div>
 
       {visiveis.length === 0 ? (
-        <div className="fila-vazia">
+        <div className="fila-vazia" role="status">
           <p>{mensagemVazia(filtro)}</p>
+          {filtro !== 'todas' ? (
+            <button type="button" className="secundario" onClick={() => escolherFiltro('todas')}>
+              Ver todas
+            </button>
+          ) : null}
         </div>
       ) : (
-        <ul className="fila-lista">
+        <ul className="fila-lista" aria-describedby={filtrosId}>
           {visiveis.map((item) => (
             <LinhaFila
               key={item.id}
@@ -147,7 +159,7 @@ export function EcraTecnico({ menu, token, ocorrencias, aoValidar }: EcraTecnico
       validarOcorrencia(token, id)
         .then(() => aoValidar(id))
         .catch((falha: unknown) => {
-          setErro(falha instanceof Error ? falha.message : 'Falha na validação');
+          setErro(falha instanceof Error ? falha.message : 'Não foi possível validar a ocorrência.');
         })
         .finally(() => setAValidar(null));
     },

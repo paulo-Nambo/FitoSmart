@@ -19,7 +19,7 @@ const RESERVA = <p className="nota">A carregar…</p>;
 
 const MARCA = (
   <div className="marca">
-    <svg className="marca-simbolo" viewBox="0 0 48 48" aria-hidden="true">
+    <svg className="marca-simbolo" viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
       <defs>
         <linearGradient id="marca-fundo" x1="6" y1="2" x2="42" y2="46" gradientUnits="userSpaceOnUse">
           <stop stopColor="#2a9a5c" />

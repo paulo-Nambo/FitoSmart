@@ -110,16 +110,18 @@ const SETA_CONTA = (
 );
 
 const ICONE_RECOLHER = (
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    <path
-      d="M15 6l-6 6 6 6"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.85"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
+  <span className="barra-recolher-icone">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M15 6l-6 6 6 6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.85"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </span>
 );
 
 const CHAVE_BARRA = 'fitosmart-barra-recolhida';
@@ -199,7 +201,14 @@ const MenuConta = memo(function MenuConta({
         )}
       </button>
       {aberto ? (
-        <div ref={painel} id={tituloId} className="conta-painel" role="dialog" aria-label={`Conta de ${rotulo}`}>
+        <div
+          ref={painel}
+          id={tituloId}
+          className="conta-painel"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Conta de ${rotulo}`}
+        >
           <div className="conta-cabeca">
             <span className="conta-avatar conta-avatar-grande" aria-hidden="true">
               {iniciais}
@@ -209,7 +218,7 @@ const MenuConta = memo(function MenuConta({
               <small translate="no">{email}</small>
             </span>
           </div>
-          <p className="conta-detalhe">Perfil {rotulo}. A sessão termina após 10 minutos sem uso.</p>
+          <p className="conta-detalhe">Perfil {rotulo}. A sessão termina após 10&nbsp;minutos sem uso.</p>
           <button type="button" className="conta-sair" onClick={aoSair}>
             Terminar sessão
           </button>
@@ -306,6 +315,7 @@ export const BarraLateral = memo(function BarraLateral({
         className={activo ? 'menu-item menu-item-activo' : 'menu-item'}
         href={urlDoMenu(item.id)}
         aria-current={activo ? 'page' : undefined}
+        aria-label={compacta ? item.rotulo : undefined}
         title={compacta ? item.rotulo : undefined}
         onClick={(evento) => seguir(evento, item.id)}
         onPointerEnter={item.id === 'acesso' ? aoPreverAcesso : undefined}
@@ -340,11 +350,13 @@ export const BarraLateral = memo(function BarraLateral({
         </button>
       </header>
       <nav id="barra-navegacao" className="barra-nav" aria-label="Menu principal">
-        {compacta ? null : <p className="grupo-rotulo">Menu</p>}
+        {compacta ? null : (
+          <h2 className="grupo-rotulo">Menu</h2>
+        )}
         {principal.map((item) => ligacao(item))}
         {administracao.length > 0 ? (
           <div className="grupo-admin">
-            {compacta ? null : <p className="grupo-rotulo">Administração</p>}
+            {compacta ? null : <h2 className="grupo-rotulo">Administração</h2>}
             {administracao.map((item) => ligacao(item))}
           </div>
         ) : null}

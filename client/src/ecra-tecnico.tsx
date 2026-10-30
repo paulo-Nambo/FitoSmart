@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, startTransition, useCallback, useState } from 'react';
 import { validarOcorrencia, type Ocorrencia } from './api';
 import { CartaoOcorrencia } from './cartao-ocorrencia';
 import type { MenuId } from './barra-lateral';
@@ -14,10 +14,6 @@ import {
 import { PainelEstatisticas } from './painel-estatisticas';
 
 const NOTA_PAINEL = <p className="nota">Totais da fila. O menu abre os casos por rever.</p>;
-
-const NOTA_FILA = (
-  <p className="nota">A fila coloca primeiro os casos encaminhados. Só o perfil TECNICO pode validá-los.</p>
-);
 
 interface EcraTecnicoProps {
   menu: MenuId;
@@ -37,13 +33,16 @@ const LinhaFila = memo(function LinhaFila({
   pendente: boolean;
   aoValidar: (id: string) => void;
 }) {
+  const precisaValidacao = ocorrencia.status === 'ENCAMINHADA';
+
   return (
-    <li>
+    <li className={precisaValidacao ? 'fila-linha fila-linha-urgente' : 'fila-linha'}>
       <CartaoOcorrencia
         token={token}
         ocorrencia={ocorrencia}
+        variante="fila"
         acao={
-          ocorrencia.status === 'ENCAMINHADA' ? (
+          precisaValidacao ? (
             <button
               type="button"
               className="primario"
@@ -51,7 +50,7 @@ const LinhaFila = memo(function LinhaFila({
               aria-busy={pendente}
               onClick={() => aoValidar(ocorrencia.id)}
             >
-              {pendente ? 'A validar…' : 'Validar ocorrência'}
+              {pendente ? 'A validar…' : 'Validar'}
             </button>
           ) : null
         }
@@ -76,24 +75,52 @@ const FilaTecnica = memo(function FilaTecnica({
   const { filtro, escolher } = useFiltroEstado();
   const visiveis = porPrioridade(filtrarEstado(ocorrencias, filtro));
   const contagens = contarEstados(ocorrencias);
+  const pendentes = contagens.ENCAMINHADA;
+
+  const escolherFiltro = useCallback(
+    (proximo: Parameters<typeof escolher>[0]) => {
+      startTransition(() => {
+        escolher(proximo);
+      });
+    },
+    [escolher],
+  );
 
   return (
-    <section className="cartao lista">
-      <header className="lista-cabeca">
-        <h1 className="titulo">Fila técnica</h1>
-        <p className="nota lista-total">{rotuloLista(visiveis.length, ocorrencias.length, filtro)}</p>
+    <section className="fila-ecra" aria-labelledby="fila-titulo">
+      <header className="fila-cabeca">
+        <div className="fila-cabeca-texto">
+          <h1 id="fila-titulo" className="titulo">
+            Fila técnica
+          </h1>
+          <p className="nota lista-total">{rotuloLista(visiveis.length, ocorrencias.length, filtro)}</p>
+        </div>
+        {pendentes > 0 ? (
+          <p className="fila-badge" aria-label={`${pendentes} casos por validar`}>
+            <span className="fila-badge-ponto" aria-hidden="true" />
+            {pendentes === 1 ? '1 por validar' : `${pendentes} por validar`}
+          </p>
+        ) : (
+          <p className="fila-badge fila-badge-ok">Fila em dia</p>
+        )}
       </header>
-      {NOTA_FILA}
-      <BarraFiltro filtro={filtro} aoEscolher={escolher} contagens={contagens} />
+
+      <div className="fila-ferramentas">
+        <BarraFiltro filtro={filtro} aoEscolher={escolherFiltro} contagens={contagens} />
+      </div>
+
       {erro ? (
         <p className="alerta" role="alert">
           {erro}
         </p>
       ) : null}
+
       {visiveis.length === 0 ? (
-        <p className="lista-vazia">{mensagemVazia(filtro)}</p>
+        <div className="fila-vazia">
+          <p>{mensagemVazia(filtro)}</p>
+        </div>
       ) : (
-        <ul>
+        <ul className="fila-lista">
           {visiveis.map((item) => (
             <LinhaFila
               key={item.id}
@@ -134,9 +161,9 @@ export function EcraTecnico({ menu, token, ocorrencias, aoValidar }: EcraTecnico
         {NOTA_PAINEL}
         {menu === 'painel' ? <PainelEstatisticas ocorrencias={ocorrencias} /> : null}
       </section>
-      <div hidden={menu !== 'fila'}>
+      {menu === 'fila' ? (
         <FilaTecnica token={token} ocorrencias={ocorrencias} erro={erro} aValidar={aValidar} aoValidar={validar} />
-      </div>
+      ) : null}
     </>
   );
 }

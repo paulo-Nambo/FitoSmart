@@ -18,6 +18,12 @@ const RECOMENDACAO: Record<Ocorrencia['status'], string> = {
   VALIDADA: 'Um técnico confirmou o caso. Mantenha o acompanhamento no talhão.',
 };
 
+const ROTULO_ESTADO: Record<Ocorrencia['status'], string> = {
+  TRIADA: 'Triada',
+  ENCAMINHADA: 'Encaminhada',
+  VALIDADA: 'Validada',
+};
+
 function formatarData(iso: string): string {
   const data = new Date(iso);
   if (Number.isNaN(data.getTime())) return '';
@@ -127,25 +133,34 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
   token,
   ocorrencia,
   acao,
+  variante = 'completo',
 }: {
   token: string;
   ocorrencia: Ocorrencia;
   acao?: ReactNode;
+  variante?: 'completo' | 'fila';
 }) {
   const quando = formatarData(ocorrencia.criadaEm);
   const fotos = ocorrencia.imagens ?? [];
   const mapa = ligaMapa(ocorrencia.latitude, ocorrencia.longitude);
   const local = `${COORDENADA.format(ocorrencia.latitude)}, ${COORDENADA.format(ocorrencia.longitude)}`;
+  const fila = variante === 'fila';
+  const classes = [
+    'item',
+    `estado-${ocorrencia.status.toLowerCase()}`,
+    fotos.length > 0 ? 'item-com-foto' : '',
+    fila ? 'item-fila' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <article className={`item estado-${ocorrencia.status.toLowerCase()}${fotos.length > 0 ? ' item-com-foto' : ''}`}>
+    <article className={classes}>
       {fotos.length > 0 ? <GaleriaFotos token={token} id={ocorrencia.id} nomes={fotos} /> : null}
       <div className="item-corpo">
         <header>
           <strong className="quebrar">{ocorrencia.cultura}</strong>
-          <span className="selo" translate="no">
-            {ocorrencia.status}
-          </span>
+          <span className="selo">{ROTULO_ESTADO[ocorrencia.status]}</span>
         </header>
         <ul className="item-sintomas">
           {ocorrencia.sintomas.map((id) => (
@@ -177,7 +192,7 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
           </div>
           {ocorrencia.autorEmail ? (
             <div>
-              <dt>Conta</dt>
+              <dt>{fila ? 'Agricultor' : 'Conta'}</dt>
               <dd className="quebrar" translate="no">
                 {ocorrencia.autorEmail}
               </dd>
@@ -194,7 +209,7 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
         >
           <span style={{ width: `${ocorrencia.confianca}%` }} />
         </div>
-        <p className="nota">{RECOMENDACAO[ocorrencia.status]}</p>
+        {fila ? null : <p className="nota">{RECOMENDACAO[ocorrencia.status]}</p>}
         {acao ? <div className="item-rodape">{acao}</div> : null}
       </div>
     </article>

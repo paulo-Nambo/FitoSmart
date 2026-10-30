@@ -105,7 +105,7 @@ export const BarraFiltro = memo(function BarraFiltro({
   contagens: ContagensEstado;
 }) {
   return (
-    <div className="filtros" role="group" aria-label="Filtrar por estado">
+    <div className="filtros filtros-segmento" role="group" aria-label="Filtrar por estado">
       {FILTROS.map((item) => (
         <button
           key={item.id}
@@ -114,7 +114,7 @@ export const BarraFiltro = memo(function BarraFiltro({
           aria-pressed={filtro === item.id}
           onClick={() => aoEscolher(item.id)}
         >
-          {item.rotulo}
+          <span className="chip-rotulo">{item.rotulo}</span>
           <span className="chip-conta">{NUMERO.format(contagens[item.id])}</span>
         </button>
       ))}

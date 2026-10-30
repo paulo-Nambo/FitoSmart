@@ -1,47 +1,94 @@
-import { memo, useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import {
+  memo,
+  startTransition,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import type { Sessao } from './sessao';
 
-export type MenuId = 'painel' | 'nova' | 'ocorrencias' | 'fila' | 'acesso';
+export type MenuId = 'painel' | 'nova' | 'ocorrencias' | 'fila' | 'acesso' | 'tempo';
+
+type ItemMenu = { id: MenuId; rotulo: string; grupo: 'principal' | 'administracao' };
 
 const MENUS_AGRICULTOR = [
   { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
   { id: 'nova', rotulo: 'Nova ocorrência', grupo: 'principal' },
   { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
-] as const satisfies ReadonlyArray<{ id: MenuId; rotulo: string; grupo: 'principal' | 'administracao' }>;
+  { id: 'tempo', rotulo: 'Previsão do tempo', grupo: 'principal' },
+] as const satisfies ReadonlyArray<ItemMenu>;
 
 const MENUS_TECNICO = [
   { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
   { id: 'fila', rotulo: 'Fila técnica', grupo: 'principal' },
-  { id: 'acesso', rotulo: 'Gestão de Acesso', grupo: 'administracao' },
-] as const satisfies ReadonlyArray<{ id: MenuId; rotulo: string; grupo: 'principal' | 'administracao' }>;
+  { id: 'tempo', rotulo: 'Previsão do tempo', grupo: 'principal' },
+  { id: 'acesso', rotulo: 'Gestão de acesso', grupo: 'administracao' },
+] as const satisfies ReadonlyArray<ItemMenu>;
 
 const ICONES: Record<MenuId, ReactNode> = {
   painel: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="3" width="8" height="8" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
-      <rect x="13" y="3" width="8" height="8" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
-      <rect x="3" y="13" width="8" height="8" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
-      <rect x="13" y="13" width="8" height="8" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.75" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.75" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.75" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.75" fill="none" stroke="currentColor" strokeWidth="1.75" />
     </svg>
   ),
   nova: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M12 8.5v7M8.5 12h7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
   ),
   ocorrencias: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 7h12M6 12h12M6 17h8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d="M8 6.5h11M8 12h11M8 17.5h7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+      <circle cx="5" cy="6.5" r="1" fill="currentColor" />
+      <circle cx="5" cy="12" r="1" fill="currentColor" />
+      <circle cx="5" cy="17.5" r="1" fill="currentColor" />
     </svg>
   ),
   fila: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d="M5 7h14M5 12h14M5 17h14"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
     </svg>
   ),
   acesso: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path
+        d="M12 3.5l7 3v5.8c0 4.2-2.9 7.2-7 8.7-4.1-1.5-7-4.5-7-8.7V6.5l7-3z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ),
+  tempo: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.1 6.1l1.6 1.6M16.3 16.3l1.6 1.6M6.1 17.9l1.6-1.6M16.3 7.7l1.6-1.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
     </svg>
   ),
 };
@@ -62,14 +109,39 @@ const SETA_CONTA = (
   </svg>
 );
 
+const ICONE_RECOLHER = (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      d="M15 6l-6 6 6 6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.85"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const CHAVE_BARRA = 'fitosmart-barra-recolhida';
+
+function lerBarraRecolhida(): boolean {
+  try {
+    return window.localStorage.getItem(CHAVE_BARRA) === '1';
+  } catch {
+    return false;
+  }
+}
+
 const MenuConta = memo(function MenuConta({
   perfil,
   email,
   aoSair,
+  compacto,
 }: {
   perfil: Sessao['perfil'];
   email: string;
   aoSair: () => void;
+  compacto: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const raiz = useRef<HTMLDivElement>(null);
@@ -105,8 +177,9 @@ const MenuConta = memo(function MenuConta({
       <button
         ref={gatilho}
         type="button"
-        className="conta-gatilho"
+        className={compacto ? 'conta-gatilho conta-gatilho-compacto' : 'conta-gatilho'}
         aria-label={`Menu da conta: ${rotulo}`}
+        title={compacto ? `${rotulo} · ${email}` : undefined}
         aria-haspopup="dialog"
         aria-expanded={aberto}
         aria-controls={aberto ? tituloId : undefined}
@@ -115,11 +188,15 @@ const MenuConta = memo(function MenuConta({
         <span className="conta-avatar" aria-hidden="true">
           {iniciais}
         </span>
-        <span className="conta-texto">
-          <strong>{rotulo}</strong>
-          <small translate="no">{email}</small>
-        </span>
-        {SETA_CONTA}
+        {compacto ? null : (
+          <>
+            <span className="conta-texto">
+              <strong>{rotulo}</strong>
+              <small translate="no">{email}</small>
+            </span>
+            {SETA_CONTA}
+          </>
+        )}
       </button>
       {aberto ? (
         <div ref={painel} id={tituloId} className="conta-painel" role="dialog" aria-label={`Conta de ${rotulo}`}>
@@ -180,51 +257,101 @@ export const BarraLateral = memo(function BarraLateral({
   aoPreverAcesso,
   aoSair,
 }: BarraLateralProps) {
+  const [recolhida, setRecolhida] = useState(lerBarraRecolhida);
+  const [ecraLargo, setEcraLargo] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 801px)').matches : true,
+  );
+  const compacta = recolhida && ecraLargo;
+
+  useEffect(() => {
+    const consulta = window.matchMedia('(min-width: 801px)');
+    const sincronizar = () => setEcraLargo(consulta.matches);
+    sincronizar();
+    consulta.addEventListener('change', sincronizar);
+    return () => consulta.removeEventListener('change', sincronizar);
+  }, []);
+
   function seguir(evento: MouseEvent<HTMLAnchorElement>, id: MenuId) {
     if (evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey || evento.button !== 0) return;
     evento.preventDefault();
-    aoEscolher(id);
+    startTransition(() => {
+      aoEscolher(id);
+    });
   }
 
-  const principal = [];
-  const administracao = [];
+  function alternarRecolha() {
+    setRecolhida((atual) => {
+      const proximo = !atual;
+      try {
+        window.localStorage.setItem(CHAVE_BARRA, proximo ? '1' : '0');
+      } catch {
+        // Sem armazenamento local — só o estado em memória.
+      }
+      return proximo;
+    });
+  }
+
+  const principal: ItemMenu[] = [];
+  const administracao: ItemMenu[] = [];
   for (const item of menusDoPerfil(perfil)) {
     if (item.grupo === 'administracao') administracao.push(item);
     else principal.push(item);
   }
 
-  function ligacao(item: (typeof MENUS_TECNICO)[number] | (typeof MENUS_AGRICULTOR)[number]) {
+  function ligacao(item: ItemMenu) {
+    const activo = menu === item.id;
     return (
       <a
         key={item.id}
-        className="menu-item"
+        className={activo ? 'menu-item menu-item-activo' : 'menu-item'}
         href={urlDoMenu(item.id)}
-        aria-current={menu === item.id ? 'page' : undefined}
+        aria-current={activo ? 'page' : undefined}
+        title={compacta ? item.rotulo : undefined}
         onClick={(evento) => seguir(evento, item.id)}
         onPointerEnter={item.id === 'acesso' ? aoPreverAcesso : undefined}
         onFocus={item.id === 'acesso' ? aoPreverAcesso : undefined}
       >
-        {ICONES[item.id]}
-        {item.rotulo}
+        <span className="menu-item-icone" aria-hidden="true">
+          {ICONES[item.id]}
+        </span>
+        <span className="menu-item-rotulo">{item.rotulo}</span>
       </a>
     );
   }
 
   return (
-    <aside className="barra">
-      <div className="barra-marca">{marca}</div>
-      <nav className="barra-nav" aria-label="Menu principal">
+    <aside
+      className={compacta ? 'barra barra-recolhida' : 'barra'}
+      aria-label="Navegação da aplicação"
+      data-recolhida={compacta ? 'true' : 'false'}
+    >
+      <header className="barra-topo">
+        <div className="barra-marca">{marca}</div>
+        <button
+          type="button"
+          className="barra-recolher"
+          aria-expanded={!compacta}
+          aria-controls="barra-navegacao"
+          aria-label={compacta ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+          title={compacta ? 'Expandir' : 'Recolher'}
+          onClick={alternarRecolha}
+        >
+          {ICONE_RECOLHER}
+        </button>
+      </header>
+      <nav id="barra-navegacao" className="barra-nav" aria-label="Menu principal">
+        {compacta ? null : <p className="grupo-rotulo">Menu</p>}
         {principal.map((item) => ligacao(item))}
         {administracao.length > 0 ? (
           <div className="grupo-admin">
-            <p className="grupo-rotulo">Administração</p>
+            {compacta ? null : <p className="grupo-rotulo">Administração</p>}
             {administracao.map((item) => ligacao(item))}
           </div>
         ) : null}
       </nav>
-      <div className="barra-utilizador">
-        <MenuConta perfil={perfil} email={email} aoSair={aoSair} />
-      </div>
+      <footer className="barra-utilizador">
+        <MenuConta perfil={perfil} email={email} aoSair={aoSair} compacto={compacta} />
+      </footer>
     </aside>
   );
 });

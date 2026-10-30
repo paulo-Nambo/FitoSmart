@@ -1,38 +1,18 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { entrar } from './api';
+import {
+  carregarPrevisaoHojeMaputo,
+  PREVISAO_RESERVA,
+  type DiaPrevisao,
+} from './previsao-tempo';
 import { guardarSessao, type Sessao } from './sessao';
 import { MINUTOS_INACTIVIDADE } from './use-inactividade';
 
-const INTERVALO_DESTAQUE_MS = 6500;
 const ANO = new Date().getFullYear();
 
 const CONTAS_DEMO = [
   { email: 'agricultor@uem.mz', senha: '123456', rotulo: 'Agricultor', perfil: 'AGRICULTOR' },
   { email: 'tecnico@uem.mz', senha: '123456', rotulo: 'Técnico', perfil: 'TECNICO' },
-] as const;
-
-const DESTAQUES = [
-  {
-    id: 'triagem',
-    kind: 'Triagem',
-    title: 'Decisão ainda no campo',
-    description: 'Dois sintomas da ficha base fecham a ocorrência com 100% de confiança.',
-    meta: 'UEM · Fitossanidade',
-  },
-  {
-    id: 'revisao',
-    kind: 'Revisão',
-    title: 'Abaixo de 60% segue para um técnico',
-    description: 'Uma coincidência em duas fica encaminhada para revisão humana.',
-    meta: 'Limiar de confiança',
-  },
-  {
-    id: 'acesso',
-    kind: 'Acesso',
-    title: 'Só o técnico valida',
-    description: 'O agricultor regista. A passagem a VALIDADA exige o perfil TECNICO.',
-    meta: 'Controlo de perfil',
-  },
 ] as const;
 
 const MARCA = (
@@ -138,7 +118,7 @@ export function EcraLogin({ aoEntrar, aoPrever }: EcraLoginProps) {
       <main id="conteudo" className="acesso-formulario">
         <FormularioLogin aoEntrar={aoEntrar} aoPrever={aoPrever} />
       </main>
-      <aside className="acesso-marca" aria-label="Destaques e marca FitoSmart">
+      <aside className="acesso-marca" aria-label="Previsão do tempo e marca FitoSmart">
         {DECOR}
         <header className="acesso-cabecalho">{MARCA}</header>
         <Destaques />
@@ -274,98 +254,57 @@ function FormularioLogin({ aoEntrar, aoPrever }: EcraLoginProps) {
 }
 
 function Destaques() {
-  const [indice, setIndice] = useState(0);
-  const [direccao, setDireccao] = useState<1 | -1>(1);
-  const [pausado, setPausado] = useState(false);
-  const [reduzirMovimento, setReduzirMovimento] = useState(false);
-  const total = DESTAQUES.length;
+  const [previsao, setPrevisao] = useState<DiaPrevisao | null>(null);
+  const aCarregar = previsao === null;
+  const destaque = previsao ?? PREVISAO_RESERVA;
 
   useEffect(() => {
-    const consulta = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const sincronizar = () => setReduzirMovimento(consulta.matches);
-    sincronizar();
-    consulta.addEventListener('change', sincronizar);
-    return () => consulta.removeEventListener('change', sincronizar);
+    const controlo = new AbortController();
+    carregarPrevisaoHojeMaputo(controlo.signal)
+      .then(setPrevisao)
+      .catch(() => {
+        if (!controlo.signal.aborted) setPrevisao(PREVISAO_RESERVA);
+      });
+    return () => controlo.abort();
   }, []);
 
-  const ir = useCallback((sentido: -1 | 1) => {
-    setDireccao(sentido);
-    setIndice((atual) => (atual + sentido + total) % total);
-  }, [total]);
-
-  const irPara = useCallback(
-    (destino: number) => {
-      if (destino === indice) return;
-      const frente = (destino - indice + total) % total;
-      const tras = (indice - destino + total) % total;
-      setDireccao(frente <= tras ? 1 : -1);
-      setIndice(destino);
-    },
-    [indice, total],
-  );
-
-  useEffect(() => {
-    if (pausado || reduzirMovimento || total <= 1) return;
-    const relogio = window.setInterval(() => ir(1), INTERVALO_DESTAQUE_MS);
-    return () => window.clearInterval(relogio);
-  }, [pausado, reduzirMovimento, ir, total]);
-
-  const destaque = DESTAQUES[indice];
-  const classeEntrada = reduzirMovimento ? '' : direccao === 1 ? 'destaque-seguir' : 'destaque-voltar';
-
   return (
-    <div
-      className="destaques"
-      role="region"
-      aria-roledescription="carousel"
-      aria-label="Destaques FitoSmart"
-      onMouseEnter={() => setPausado(true)}
-      onMouseLeave={() => setPausado(false)}
-      onFocusCapture={() => setPausado(true)}
-      onBlurCapture={(evento) => {
-        if (!evento.currentTarget.contains(evento.relatedTarget as Node | null)) setPausado(false);
-      }}
-    >
+    <div className="destaques" role="region" aria-label="Previsão do tempo de hoje em Maputo" aria-busy={aCarregar}>
       <div className="destaques-topo">
-        <p>Destaques</p>
-        <div>
-          <button type="button" aria-label="Destaque anterior" onClick={() => ir(-1)}>
-            ‹
-          </button>
-          <button type="button" aria-label="Destaque seguinte" onClick={() => ir(1)}>
-            ›
-          </button>
-        </div>
+        <p>Previsão de hoje</p>
       </div>
       <div className="destaque-cartao">
         <div
-          key={`${destaque.id}-${direccao}`}
-          className={`destaque-painel ${classeEntrada}`}
-          role="group"
-          aria-roledescription="slide"
-          aria-label={`${indice + 1} de ${total}: ${destaque.title}`}
+          className="destaque-painel destaque-tempo"
+          aria-label={`${destaque.kind}: ${destaque.title}`}
         >
-          <span className="destaque-tipo">{destaque.kind}</span>
+          <span className="destaque-tipo">{aCarregar ? 'A carregar…' : destaque.kind}</span>
+          {destaque.temperatura !== null ? (
+            <p className="destaque-temp" aria-hidden="true">
+              {Math.round(destaque.temperatura)}
+              <span>°C</span>
+            </p>
+          ) : null}
           <p className="destaque-titulo">{destaque.title}</p>
           <p>{destaque.description}</p>
+          {destaque.maxima !== null && destaque.minima !== null ? (
+            <div className="destaque-faixa" aria-hidden="true">
+              <span>Mín {Math.round(destaque.minima)}°</span>
+              <span className="destaque-faixa-barra">
+                <i
+                  style={
+                    {
+                      '--min': `${Math.max(0, Math.min(100, ((destaque.minima + 5) / 45) * 100))}%`,
+                      '--max': `${Math.max(0, Math.min(100, ((destaque.maxima + 5) / 45) * 100))}%`,
+                    } as CSSProperties
+                  }
+                />
+              </span>
+              <span>Máx {Math.round(destaque.maxima)}°</span>
+            </div>
+          ) : null}
           <p className="destaque-meta">{destaque.meta}</p>
-          <div className="destaque-progresso" aria-hidden="true">
-            <span className={pausado || reduzirMovimento ? 'parado' : 'a-correr'} />
-          </div>
         </div>
-      </div>
-      <div className="destaque-pontos" role="group" aria-label="Seleccionar destaque">
-        {DESTAQUES.map((item, posicao) => (
-          <button
-            key={item.id}
-            type="button"
-            aria-current={posicao === indice ? 'true' : undefined}
-            aria-label={`Ir para destaque ${posicao + 1}: ${item.title}`}
-            onClick={() => irPara(posicao)}
-          >
-            <span className={posicao === indice ? 'activo' : ''} />
-          </button>
-        ))}
       </div>
     </div>
   );

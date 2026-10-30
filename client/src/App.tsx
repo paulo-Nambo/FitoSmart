@@ -8,10 +8,12 @@ import { useInactividade } from './use-inactividade';
 const importarOcorrencia = () => import('./ecra-ocorrencia');
 const importarTecnico = () => import('./ecra-tecnico');
 const importarAcesso = () => import('./ecra-acesso');
+const importarTempo = () => import('./ecra-tempo');
 
 const EcraOcorrencia = lazy(() => importarOcorrencia().then((modulo) => ({ default: modulo.EcraOcorrencia })));
 const EcraTecnico = lazy(() => importarTecnico().then((modulo) => ({ default: modulo.EcraTecnico })));
 const EcraAcesso = lazy(() => importarAcesso().then((modulo) => ({ default: modulo.EcraAcesso })));
+const EcraTempo = lazy(() => importarTempo().then((modulo) => ({ default: modulo.EcraTempo })));
 
 const RESERVA = <p className="nota">A carregar…</p>;
 
@@ -141,7 +143,9 @@ export function App() {
       />
       <main id="conteudo" className="pagina">
         <Suspense fallback={RESERVA}>
-          {sessao.perfil === 'AGRICULTOR' ? (
+          {menu === 'tempo' ? (
+            <EcraTempo />
+          ) : sessao.perfil === 'AGRICULTOR' ? (
             <EcraOcorrencia menu={menu} token={sessao.token} ocorrencias={ocorrencias} aoRegistar={registar} />
           ) : menu === 'acesso' ? (
             <EcraAcesso token={sessao.token} emailSessao={sessao.email} />

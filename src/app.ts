@@ -10,6 +10,7 @@ import {
 } from './fitossanidade';
 import { diagnosticoHandler } from './diagnostico';
 import { guardarImagemHandler, servirImagemHandler } from './imagens';
+import { servirReferenciaHandler } from './referencias-http';
 
 export function criarApp() {
   const app = express();
@@ -38,6 +39,11 @@ export function criarApp() {
   app.get('/api/utilizadores', listarUtilizadoresHandler);
   app.post('/api/utilizadores', criarUtilizadorHandler);
   app.patch('/api/utilizadores/:email', actualizarPerfilHandler);
+
+  // Com DATABASE_URL: imagens vêm da BD; sem BD (ou miss): ficheiros em public/.
+  app.get('/referencias/:entradaId/:nome', servirReferenciaHandler);
+  const pastaReferencias = path.join(__dirname, '..', 'client', 'public', 'referencias');
+  app.use('/referencias', express.static(pastaReferencias));
 
   const pastaCliente = path.join(__dirname, '..', 'dist', 'client');
   app.use(express.static(pastaCliente));

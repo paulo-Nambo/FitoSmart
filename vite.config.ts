@@ -15,7 +15,16 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:3001',
+      '/api': {
+        target: 'http://localhost:3001',
+        // LLaVA pode demorar 1–2 min; o default do proxy corta cedo demais.
+        timeout: 180_000,
+        proxyTimeout: 180_000,
+      },
+      // Biblioteca de referência: na BD (PostgreSQL) via API.
+      '/referencias': {
+        target: 'http://localhost:3001',
+      },
     },
   },
   build: {

@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import jpeg from 'jpeg-js';
 import { identificarPedido } from './auth';
+import { imagensReferenciaPara } from './biblioteca-referencias';
 
 const SINTOMAS_VALIDOS = new Set(['manchas_amarelas', 'folhas_secas', 'murcha', 'pragas_visiveis']);
 const CULTURAS = new Set(['Milho', 'Mandioca', 'Feijão', 'Tomate']);
@@ -17,14 +18,6 @@ export interface Diagnostico {
   imagensReferencia: string[];
 }
 
-interface Hipotese {
-  praga: string;
-  nomeCientifico: string | null;
-  sintomas: string[];
-  pesos: { amarelas: number; secas: number; murchas: number; contrastes: number; verde: number };
-  recomendacao: string;
-}
-
 interface SinaisVisuais {
   amarelas: number;
   secas: number;
@@ -32,101 +25,6 @@ interface SinaisVisuais {
   contrastes: number;
   verde: number;
 }
-
-const BASE_CONHECIMENTO: Record<string, Hipotese[]> = {
-  Milho: [
-    {
-      praga: 'Mancha foliar / helmintosporiose',
-      nomeCientifico: 'Bipolaris / Exserohilum',
-      sintomas: ['manchas_amarelas', 'folhas_secas'],
-      pesos: { amarelas: 1.2, secas: 0.9, murchas: 0.1, contrastes: 0.4, verde: 0.2 },
-      recomendacao: 'Remova folhas muito afectadas e avalie fungicida recomendado para milho na zona.',
-    },
-    {
-      praga: 'Lagarta-do-cartucho',
-      nomeCientifico: 'Spodoptera frugiperda',
-      sintomas: ['pragas_visiveis', 'folhas_secas'],
-      pesos: { amarelas: 0.2, secas: 0.5, murchas: 0.1, contrastes: 1.4, verde: 0.3 },
-      recomendacao: 'Inspeccione o cartucho. Se houver larvas, use controlo biológico ou insecticida indicado.',
-    },
-    {
-      praga: 'Deficiência nutricional / stress hídrico',
-      nomeCientifico: null,
-      sintomas: ['manchas_amarelas', 'murcha'],
-      pesos: { amarelas: 1, secas: 0.3, murchas: 0.8, contrastes: 0.1, verde: 0.1 },
-      recomendacao: 'Verifique irrigação e adubação nitrogenada antes de aplicar pesticida.',
-    },
-  ],
-  Mandioca: [
-    {
-      praga: 'Mosaico da mandioca',
-      nomeCientifico: 'Cassava mosaic virus',
-      sintomas: ['manchas_amarelas'],
-      pesos: { amarelas: 1.5, secas: 0.3, murchas: 0.2, contrastes: 0.5, verde: 0.2 },
-      recomendacao: 'Use material de plantio limpo e elimine plantas fortemente afectadas.',
-    },
-    {
-      praga: 'Ácaro verde da mandioca',
-      nomeCientifico: 'Mononychellus tanajoa',
-      sintomas: ['pragas_visiveis', 'folhas_secas', 'manchas_amarelas'],
-      pesos: { amarelas: 0.7, secas: 0.8, murchas: 0.2, contrastes: 1.1, verde: 0.2 },
-      recomendacao: 'Aumente a monitorização das folhas jovens e considere acaricida se a infestação crescer.',
-    },
-    {
-      praga: 'Bacteriose da mandioca',
-      nomeCientifico: 'Xanthomonas phaseoli pv. manihotis',
-      sintomas: ['folhas_secas', 'murcha'],
-      pesos: { amarelas: 0.3, secas: 1.2, murchas: 1, contrastes: 0.3, verde: 0.1 },
-      recomendacao: 'Corte e destrua partes afectadas; desinfecte ferramentas de corte.',
-    },
-  ],
-  Feijão: [
-    {
-      praga: 'Antracnose do feijão',
-      nomeCientifico: 'Colletotrichum lindemuthianum',
-      sintomas: ['manchas_amarelas', 'folhas_secas'],
-      pesos: { amarelas: 1, secas: 1, murchas: 0.2, contrastes: 0.5, verde: 0.2 },
-      recomendacao: 'Evite trabalhar com folhagem molhada e use semente tratada na próxima sementeira.',
-    },
-    {
-      praga: 'Ferrugem do feijão',
-      nomeCientifico: 'Uromyces appendiculatus',
-      sintomas: ['manchas_amarelas', 'folhas_secas'],
-      pesos: { amarelas: 1.1, secas: 0.7, murchas: 0.1, contrastes: 0.6, verde: 0.2 },
-      recomendacao: 'Melhore a circulação de ar entre linhas e avalie fungicida se a doença avançar.',
-    },
-    {
-      praga: 'Mosca-branca',
-      nomeCientifico: 'Bemisia tabaci',
-      sintomas: ['pragas_visiveis', 'manchas_amarelas', 'murcha'],
-      pesos: { amarelas: 0.6, secas: 0.3, murchas: 0.5, contrastes: 1.2, verde: 0.2 },
-      recomendacao: 'Inspeccione a face inferior das folhas e use armadilhas ou controlo indicado.',
-    },
-  ],
-  Tomate: [
-    {
-      praga: 'Alternária / pinta-preta',
-      nomeCientifico: 'Alternaria solani',
-      sintomas: ['manchas_amarelas', 'folhas_secas'],
-      pesos: { amarelas: 1.1, secas: 1, murchas: 0.2, contrastes: 0.5, verde: 0.2 },
-      recomendacao: 'Remova folhas baixas afectadas e evite rega sobre a folhagem.',
-    },
-    {
-      praga: 'Míldio do tomateiro',
-      nomeCientifico: 'Phytophthora infestans',
-      sintomas: ['manchas_amarelas', 'folhas_secas', 'murcha'],
-      pesos: { amarelas: 0.9, secas: 1.1, murchas: 0.7, contrastes: 0.3, verde: 0.1 },
-      recomendacao: 'Actue cedo com fungicida adequado e melhore o arejamento da cultura.',
-    },
-    {
-      praga: 'Traça-do-tomateiro',
-      nomeCientifico: 'Tuta absoluta',
-      sintomas: ['pragas_visiveis', 'folhas_secas'],
-      pesos: { amarelas: 0.3, secas: 0.6, murchas: 0.2, contrastes: 1.4, verde: 0.3 },
-      recomendacao: 'Procure minas nas folhas e frutos; use armadilhas e controlo integrado.',
-    },
-  ],
-};
 
 function hsv(r: number, g: number, b: number) {
   const max = Math.max(r, g, b);
@@ -189,16 +87,6 @@ function extrairSinais(buffer: Buffer): SinaisVisuais {
   };
 }
 
-function pontuar(hipotese: Hipotese, sinais: SinaisVisuais) {
-  return (
-    hipotese.pesos.amarelas * sinais.amarelas +
-    hipotese.pesos.secas * sinais.secas +
-    hipotese.pesos.murchas * sinais.murchas +
-    hipotese.pesos.contrastes * sinais.contrastes +
-    hipotese.pesos.verde * sinais.verde
-  );
-}
-
 function sintomasVisuais(sinais: SinaisVisuais): string[] {
   const sintomas: string[] = [];
   if (sinais.amarelas >= 0.04) sintomas.push('manchas_amarelas');
@@ -208,15 +96,79 @@ function sintomasVisuais(sinais: SinaisVisuais): string[] {
   return sintomas;
 }
 
+function hipotesePorSintomas(
+  cultura: string | null,
+  sintomas: string[],
+): { praga: string; nomeCientifico: string | null; recomendacao: string } | null {
+  if (!cultura || sintomas.length === 0) return null;
+  const tem = (id: string) => sintomas.includes(id);
+  if (cultura === 'Milho') {
+    if (tem('pragas_visiveis')) {
+      return {
+        praga: 'Lagarta-do-cartucho (hipótese)',
+        nomeCientifico: 'Spodoptera frugiperda',
+        recomendacao: 'Inspeccione o cartucho. Confirme larvas antes de tratar.',
+      };
+    }
+    if (tem('manchas_amarelas') && (tem('folhas_secas') || tem('murcha'))) {
+      return {
+        praga: 'Queima foliar do milho (hipótese)',
+        nomeCientifico: 'Exserohilum turcicum',
+        recomendacao: 'Compare com as imagens de referência e confirme no talhão.',
+      };
+    }
+    if (tem('manchas_amarelas')) {
+      return {
+        praga: 'Queima foliar do milho (hipótese)',
+        nomeCientifico: 'Exserohilum turcicum',
+        recomendacao: 'Clorose amarela: compare com queima foliar e vírus do riscado.',
+      };
+    }
+  }
+  if (cultura === 'Mandioca' && tem('manchas_amarelas')) {
+    return {
+      praga: 'Mosaico da mandioca (hipótese)',
+      nomeCientifico: 'Cassava mosaic virus',
+      recomendacao: 'Use material de plantio limpo; elimine plantas muito afectadas.',
+    };
+  }
+  if (cultura === 'Feijão' && tem('manchas_amarelas')) {
+    return {
+      praga: 'Ferrugem / mancha foliar (hipótese)',
+      nomeCientifico: null,
+      recomendacao: 'Compare com as referências de ferrugem e mancha angular.',
+    };
+  }
+  if (cultura === 'Tomate') {
+    if (tem('pragas_visiveis')) {
+      return {
+        praga: 'Traça-do-tomateiro (hipótese)',
+        nomeCientifico: 'Tuta absoluta',
+        recomendacao: 'Procure minas nas folhas; confirme antes de tratar.',
+      };
+    }
+    if (tem('manchas_amarelas') || tem('folhas_secas')) {
+      return {
+        praga: 'Alternária / míldio (hipótese)',
+        nomeCientifico: null,
+        recomendacao: 'Remova folhas baixas afectadas e melhore o arejamento.',
+      };
+    }
+  }
+  return null;
+}
+
 export function diagnosticarLocal(buffer: Buffer, culturaPreferida?: string): Diagnostico {
   const sinais = extrairSinais(buffer);
   const visiveis = sintomasVisuais(sinais);
+  const cultura =
+    culturaPreferida && CULTURAS.has(culturaPreferida) ? culturaPreferida : null;
 
   if (visiveis.length === 0) {
     return {
       praga: 'Padrão pouco claro',
       nomeCientifico: null,
-      culturaDetectada: null,
+      culturaDetectada: cultura,
       sintomas: [],
       confianca: 0,
       recomendacao: 'Carregue outra fotografia mais próxima da folha afectada.',
@@ -226,52 +178,61 @@ export function diagnosticarLocal(buffer: Buffer, culturaPreferida?: string): Di
     };
   }
 
-  let melhor: Hipotese | null = null;
-  let melhorCultura: string | null = null;
-  let melhorPontuacao = -1;
+  const dominanteFoliar = sinais.amarelas + sinais.secas >= sinais.contrastes;
+  const sintomas = dominanteFoliar
+    ? visiveis.filter((id) => id !== 'pragas_visiveis')
+    : visiveis;
+  const lista = sintomas.length > 0 ? sintomas : visiveis;
+  const hipotese = hipotesePorSintomas(cultura, lista);
+  const praga = hipotese?.praga ?? 'Sintomas detectados na fotografia';
+  const nomeCientifico = hipotese?.nomeCientifico ?? null;
 
-  for (const [cultura, hipoteses] of Object.entries(BASE_CONHECIMENTO)) {
-    for (const hipotese of hipoteses) {
-      const sobreposicao = hipotese.sintomas.filter((id) => visiveis.includes(id)).length;
-      if (sobreposicao === 0) continue;
-      let pontos = pontuar(hipotese, sinais) + sobreposicao * 0.04;
-      if (culturaPreferida && cultura === culturaPreferida) pontos += 0.012;
-      if (pontos > melhorPontuacao) {
-        melhorPontuacao = pontos;
-        melhor = hipotese;
-        melhorCultura = cultura;
+  return {
+    praga,
+    nomeCientifico,
+    culturaDetectada: cultura,
+    sintomas: lista,
+    confianca: Math.min(48, 30 + lista.length * 6),
+    recomendacao:
+      hipotese?.recomendacao ??
+      'A IA de visão não respondeu a tempo. Os sintomas são por análise de cor — confirme no talhão.',
+    motor: 'fitosmart',
+    resumo: hipotese
+      ? `Hipótese local por sintomas${cultura ? ` em ${cultura}` : ''}: ${hipotese.praga}.`
+      : `Estimativa local: ${lista.length} sintoma(s)${cultura ? ` em ${cultura}` : ''}.`,
+    imagensReferencia: imagensReferenciaPara({
+      praga: hipotese ? hipotese.praga.replace(/\s*\(hipótese\)\s*/i, '').trim() : null,
+      nomeCientifico,
+      cultura,
+      limite: 3,
+    }),
+  };
+}
+
+function reduzirJpegParaVisao(buffer: Buffer, maxLado = 512): Buffer {
+  try {
+    const imagem = jpeg.decode(buffer, { useTArray: true, maxMemoryUsageInMB: 64 });
+    const escala = Math.min(1, maxLado / Math.max(imagem.width, imagem.height));
+    if (escala >= 0.98) return buffer;
+    const largura = Math.max(1, Math.round(imagem.width * escala));
+    const altura = Math.max(1, Math.round(imagem.height * escala));
+    const data = Buffer.alloc(largura * altura * 4);
+    for (let y = 0; y < altura; y += 1) {
+      const sy = Math.min(imagem.height - 1, Math.floor(y / escala));
+      for (let x = 0; x < largura; x += 1) {
+        const sx = Math.min(imagem.width - 1, Math.floor(x / escala));
+        const si = (sy * imagem.width + sx) * 4;
+        const di = (y * largura + x) * 4;
+        data[di] = imagem.data[si];
+        data[di + 1] = imagem.data[si + 1];
+        data[di + 2] = imagem.data[si + 2];
+        data[di + 3] = 255;
       }
     }
+    return Buffer.from(jpeg.encode({ data, width: largura, height: altura }, 72).data);
+  } catch {
+    return buffer;
   }
-
-  if (!melhor || !melhorCultura || melhorPontuacao < 0.05) {
-    return {
-      praga: 'Padrão pouco claro',
-      nomeCientifico: null,
-      culturaDetectada: null,
-      sintomas: visiveis,
-      confianca: 0,
-      recomendacao: 'Os sinais visuais não bastaram para nomear a praga. Confirme no campo.',
-      motor: 'fitosmart',
-      resumo: 'A fotografia mostrou sintomas, mas a praga ficou indeterminada.',
-      imagensReferencia: [],
-    };
-  }
-
-  const sintomas = [...new Set([...visiveis, ...melhor.sintomas.filter((id) => visiveis.includes(id))])];
-  const confianca = Math.max(40, Math.min(93, Math.round(38 + melhorPontuacao * 210 + sintomas.length * 7)));
-  const ciencia = melhor.nomeCientifico ? ` (${melhor.nomeCientifico})` : '';
-  return {
-    praga: melhor.praga,
-    nomeCientifico: melhor.nomeCientifico,
-    culturaDetectada: melhorCultura,
-    sintomas,
-    confianca,
-    recomendacao: melhor.recomendacao,
-    motor: 'fitosmart',
-    resumo: `Na fotografia de ${melhorCultura}: ${melhor.praga}${ciencia}, com ${confianca}\u00a0% de confiança.`,
-    imagensReferencia: [],
-  };
 }
 
 function limparSintomas(lista: unknown): string[] {
@@ -298,73 +259,233 @@ async function listarModelosOllama(): Promise<string[]> {
   }
 }
 
-async function escolherModeloOllama(): Promise<{ modelo: string; visao: boolean } | null> {
-  const configurado = process.env.OLLAMA_MODEL?.trim();
-  const modelos = await listarModelosOllama();
+function resolverModeloOllama(configurado: string | undefined, modelos: string[]): string | null {
   if (modelos.length === 0) return null;
-  if (configurado && modelos.includes(configurado)) {
-    return { modelo: configurado, visao: eModeloVisao(configurado) };
+  if (configurado) {
+    const exacto = modelos.find((nome) => nome === configurado);
+    if (exacto) return exacto;
+    const prefixo = modelos.find((nome) => nome === `${configurado}:latest` || nome.startsWith(`${configurado}:`));
+    if (prefixo) return prefixo;
   }
-  const comVisao = modelos.find(eModeloVisao);
-  if (comVisao) return { modelo: comVisao, visao: true };
-  return { modelo: modelos[0], visao: eModeloVisao(modelos[0]) };
+  return modelos.find(eModeloVisao) ?? modelos[0] ?? null;
+}
+
+async function escolherModeloOllama(): Promise<{ modelo: string; visao: boolean } | null> {
+  const modelos = await listarModelosOllama();
+  const modelo = resolverModeloOllama(process.env.OLLAMA_MODEL?.trim(), modelos);
+  if (!modelo) return null;
+  return { modelo, visao: eModeloVisao(modelo) };
 }
 
 function percentual(valor: number) {
   return `${Math.round(valor * 100)}%`;
 }
 
-function promptDiagnostico(sinais?: SinaisVisuais, sintomas?: string[]) {
-  const base = `És um fitopatologista em Moçambique (UEM). Analisa a evidência da FOTOGRAFIA.
-Culturas possíveis: Milho, Mandioca, Feijão, Tomate.
-Sintomas possíveis: manchas_amarelas, folhas_secas, murcha, pragas_visiveis.
-Responde APENAS JSON válido:
-{"culturaDetectada":"Milho"|"Mandioca"|"Feijão"|"Tomate"|null,"praga":"nome comum em português","nomeCientifico":"string ou null","sintomas":["manchas_amarelas"|"folhas_secas"|"murcha"|"pragas_visiveis"],"confianca":0-100,"recomendacao":"ação prática curta","resumo":"frase curta"}
-Se não houver evidência clara: culturaDetectada=null, sintomas=[], confianca baixa.`;
-  if (!sinais || !sintomas) return base;
-  return `${base}
-
-Sinais medidos na fotografia (proporções de píxeis):
-- manchas amarelas: ${percentual(sinais.amarelas)}
-- folhas secas/castanhas: ${percentual(sinais.secas)}
-- murcha/escuro: ${percentual(sinais.murchas)}
-- contrastes/textura: ${percentual(sinais.contrastes)}
-- verde saudável: ${percentual(sinais.verde)}
-Sintomas visuais detectados: ${sintomas.length > 0 ? sintomas.join(', ') : 'nenhum claro'}
-Baseia o diagnóstico nestes sinais da imagem.`;
+function promptDiagnostico(sinais?: SinaisVisuais, sintomas?: string[], culturaPreferida?: string) {
+  const cultura = culturaPreferida && CULTURAS.has(culturaPreferida) ? culturaPreferida : 'desconhecida';
+  const exemplos =
+    cultura === 'Milho'
+      ? 'Queima foliar do milho | Vírus do riscado | Ferrugem do milho | Lagarta-do-cartucho'
+      : cultura === 'Mandioca'
+        ? 'Mosaico da mandioca | Estria castanha'
+        : cultura === 'Feijão'
+          ? 'Ferrugem do feijão | Mancha angular'
+          : cultura === 'Tomate'
+            ? 'Alternária | Míldio | Traça-do-tomateiro'
+            : 'nome da doença';
+  const sinaisLinha =
+    sinais && sintomas
+      ? `Sinais medidos: amarelo ${percentual(sinais.amarelas)}, seco ${percentual(sinais.secas)}, murcha ${percentual(sinais.murchas)}. Sintomas cor: ${sintomas.join(', ') || 'nenhum'}.`
+      : '';
+  return `Fitopatologista. Cultura: ${cultura}. Foto de folha doente.
+${sinaisLinha}
+"praga" = nome ESPECÍFICO da doença (máx. 5 palavras). PROIBIDO: "Praga do milho", "Doença do milho", só o nome da cultura. Exemplos: ${exemplos}.
+Não digas que a foto está desfocada se houver manchas/amarelo. confianca realista (40-85).
+JSON (chave confianca SEM acento):
+{"praga":"...","nomeCientifico":null,"sintomas":["manchas_amarelas"],"confianca":0-100,"recomendacao":"...","resumo":"..."}`;
 }
 
-function interpretarRespostaIa(textoBruto: string, motor: 'ollama' | 'gemini'): Diagnostico | null {
+function normalizarTexto(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/** Nomes genéricos que o LLaVA inventa em vez de uma doença concreta. */
+function nomePragaInutil(praga: string): boolean {
+  const n = normalizarTexto(praga);
+  if (!n || n === 'indeterminado' || n === 'desconhecido' || n === 'none' || n === 'n a') return true;
+  if (/^(milho|mandioca|feijao|tomate|planta|folha|cultura|saudavel|healthy)$/.test(n)) return true;
+  if (/^(praga|doenca|pest|disease|fungo|virose|virus|problema|sintoma)s?\b/.test(n)) {
+    if (n.split(' ').length <= 4) return true;
+  }
+  if (/\b(praga|doenca)\s+d[oa]\s+(milho|mandioca|feijao|tomate|planta)\b/.test(n)) return true;
+  return false;
+}
+
+const CIENTIFICO_PARA_PRAGA: Array<{ match: RegExp; praga: string; foliar?: boolean }> = [
+  { match: /exserohilum\s+turcicum|setosphaeria\s+turcica/i, praga: 'Queima foliar do milho', foliar: true },
+  { match: /puccinia\s+sorghi/i, praga: 'Ferrugem do milho', foliar: true },
+  { match: /spodoptera\s+frugiperda/i, praga: 'Lagarta-do-cartucho' },
+  { match: /maize\s+streak|msv\b/i, praga: 'Vírus do riscado do milho', foliar: true },
+  { match: /fusarium\s+(verticillioides|moniliforme|fujikuroi)/i, praga: 'Podridão por Fusarium' },
+  { match: /alternaria\s+solani/i, praga: 'Alternária / pinta-preta', foliar: true },
+  { match: /phytophthora\s+infestans/i, praga: 'Míldio do tomateiro', foliar: true },
+  { match: /tuta\s+absoluta/i, praga: 'Traça-do-tomateiro' },
+  { match: /cassava\s+mosaic|cmd\b/i, praga: 'Mosaico da mandioca', foliar: true },
+  { match: /uromyces\s+appendiculatus/i, praga: 'Ferrugem do feijão', foliar: true },
+];
+
+function pragaPorNomeCientifico(nome: string | null): string | null {
+  if (!nome?.trim()) return null;
+  for (const item of CIENTIFICO_PARA_PRAGA) {
+    if (item.match.test(nome)) return item.praga;
+  }
+  return null;
+}
+
+function patogenoPoucaFoliar(nomeCientifico: string | null): boolean {
+  if (!nomeCientifico) return false;
+  return /fusarium\s+(verticillioides|moniliforme|fujikuroi)/i.test(nomeCientifico);
+}
+
+function limparNomePraga(bruto: string, recomendacao: string, resumo: string): {
+  praga: string;
+  recomendacao: string;
+  resumo: string;
+} {
+  const texto = bruto.trim();
+  const pareceDesculpa =
+    /desfoc|borrad|baixa qualidade|não foi possível|nao foi possivel|pouco nítid|pouco nitid|ilegív|ilegiv|blur|out of focus/i.test(
+      texto,
+    );
+  const demasiadoLongo = texto.length > 60 || texto.split(/\s+/).length > 8;
+  if (!pareceDesculpa && !demasiadoLongo) {
+    return { praga: texto, recomendacao, resumo };
+  }
+  const extra = texto.slice(0, 220);
+  return {
+    praga: 'Indeterminado',
+    recomendacao: recomendacao || 'Confirme no talhão; tire outra foto da folha afectada de perto.',
+    resumo: resumo && !/qualidade|desfoc/i.test(resumo) ? resumo : extra,
+  };
+}
+
+function extrairCamposSoltos(texto: string): Record<string, unknown> | null {
+  const praga = texto.match(/"praga"\s*:\s*"([^"]{2,80})"/i)?.[1]?.trim();
+  if (!praga) return null;
+  const confiancaMatch = texto.match(/"confian[cç]a"\s*:\s*(\d{1,3})/i);
+  const sintomasBloco = texto.match(/"sintomas"\s*:\s*\[([^\]]*)\]/i)?.[1] ?? '';
+  const sintomas = [...sintomasBloco.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  const cientifico = texto.match(/"nomeCientifico"\s*:\s*(?:"([^"]*)"|null)/i);
+  const recomendacao = texto.match(/"recomendac[aã]o"\s*:\s*"([^"]{2,180})/i)?.[1];
+  const resumo = texto.match(/"resumo"\s*:\s*"([^"]{2,180})/i)?.[1];
+  return {
+    praga,
+    confianca: confiancaMatch ? Number(confiancaMatch[1]) : 55,
+    sintomas,
+    nomeCientifico: cientifico?.[1]?.trim() || null,
+    recomendacao: recomendacao?.trim() || undefined,
+    resumo: resumo?.trim() || undefined,
+  };
+}
+
+function interpretarRespostaIa(
+  textoBruto: string,
+  motor: 'ollama' | 'gemini',
+  sintomasVisuaisFallback: string[] = [],
+  culturaPreferida?: string,
+): Diagnostico | null {
   const texto = textoBruto
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
     .replace(/```json|```/gi, '')
     .trim();
   const inicio = texto.indexOf('{');
   const fim = texto.lastIndexOf('}');
-  if (inicio < 0 || fim <= inicio) return null;
 
-  let dados: Record<string, unknown>;
-  try {
-    dados = JSON.parse(texto.slice(inicio, fim + 1)) as Record<string, unknown>;
-  } catch {
-    return null;
+  let dados: Record<string, unknown> | null = null;
+  if (inicio >= 0 && fim > inicio) {
+    try {
+      dados = JSON.parse(texto.slice(inicio, fim + 1)) as Record<string, unknown>;
+    } catch {
+      dados = null;
+    }
   }
+  // LLaVA corta o JSON a meio (aspas/chaves a mais) — recuperar campos por regex.
+  if (!dados) dados = extrairCamposSoltos(texto);
+  if (!dados) return null;
 
-  const sintomas = limparSintomas(dados.sintomas);
-  const confianca = Math.max(0, Math.min(100, Math.round(Number(dados.confianca) || 0)));
-  const praga = typeof dados.praga === 'string' && dados.praga.trim() ? dados.praga.trim() : 'Diagnóstico indeterminado';
-  const recomendacao =
-    typeof dados.recomendacao === 'string' && dados.recomendacao.trim()
-      ? dados.recomendacao.trim()
+  let sintomas = limparSintomas(dados.sintomas);
+  if (sintomas.length === 0 && sintomasVisuaisFallback.length > 0) {
+    sintomas = [...sintomasVisuaisFallback];
+  }
+  const confiancaBruta = dados.confianca ?? dados['confiança'] ?? dados.confidence;
+  let confianca = Math.max(0, Math.min(100, Math.round(Number(confiancaBruta) || 0)));
+  const pragaBruta =
+    typeof dados.praga === 'string' && dados.praga.trim() ? dados.praga.trim() : 'Indeterminado';
+  const recomendacaoBruta =
+    dados.recomendacao ?? dados['recomendacão'] ?? dados['recomendação'] ?? dados.recommendation;
+  let recomendacao =
+    typeof recomendacaoBruta === 'string' && recomendacaoBruta.trim()
+      ? recomendacaoBruta.trim()
       : 'Confirme no campo com um técnico.';
-  const resumo =
-    typeof dados.resumo === 'string' && dados.resumo.trim()
+  if (recomendacao.length > 160) recomendacao = `${recomendacao.slice(0, 157).trim()}…`;
+  let resumo =
+    typeof dados.resumo === 'string' && dados.resumo.trim() && dados.resumo.trim() !== '...'
       ? dados.resumo.trim()
-      : `Diagnóstico por IA: ${praga}.`;
-  const nomeCientifico =
+      : `Diagnóstico por IA: ${pragaBruta}.`;
+  if (resumo.length < 12 || /^[\.…]{1,5}$/.test(resumo)) {
+    resumo = `Diagnóstico por IA: ${pragaBruta}.`;
+  }
+  if (resumo.length > 180) resumo = `${resumo.slice(0, 177).trim()}…`;
+  const limpo = limparNomePraga(pragaBruta, recomendacao, resumo);
+  let praga = limpo.praga;
+  recomendacao = limpo.recomendacao;
+  resumo = limpo.resumo;
+  let nomeCientifico =
     typeof dados.nomeCientifico === 'string' && dados.nomeCientifico.trim() ? dados.nomeCientifico.trim() : null;
   const culturaBruta = typeof dados.culturaDetectada === 'string' ? dados.culturaDetectada : null;
-  const culturaDetectada = culturaBruta && CULTURAS.has(culturaBruta) ? culturaBruta : null;
+  const culturaDetectada =
+    (culturaBruta && CULTURAS.has(culturaBruta) ? culturaBruta : null) ??
+    (culturaPreferida && CULTURAS.has(culturaPreferida) ? culturaPreferida : null);
+
+  const sintomasFoliar =
+    sintomas.includes('manchas_amarelas') || sintomas.includes('folhas_secas') || sintomas.includes('murcha');
+
+  // "Praga do milho" / só cultura → tentar nome científico; senão hipótese por sintomas.
+  if (nomePragaInutil(praga)) {
+    const porCiencia = pragaPorNomeCientifico(nomeCientifico);
+    // Fusarium na espiga não explica bem foto de folha amarela/seca — preferir hipótese foliar.
+    if (porCiencia && !(sintomasFoliar && patogenoPoucaFoliar(nomeCientifico))) {
+      praga = porCiencia;
+      resumo = `Diagnóstico por IA (nome científico): ${porCiencia}.`;
+      confianca = Math.min(confianca, 70);
+    } else {
+      const hip = hipotesePorSintomas(culturaDetectada, sintomas);
+      if (!hip) return null;
+      praga = hip.praga;
+      nomeCientifico = hip.nomeCientifico;
+      recomendacao = hip.recomendacao;
+      resumo = `IA de visão indecisa; hipótese por sintomas: ${hip.praga}.`;
+      confianca = Math.min(Math.max(confianca, 42), 58);
+    }
+  }
+
+  if (/indeterminado/i.test(praga) && sintomas.length > 0) {
+    confianca = Math.max(confianca, 40);
+    if (/qualidade|desfoc|borrad|nítid|nitid/i.test(resumo)) {
+      resumo = `Sintomas visíveis (${sintomas.join(', ')})${culturaPreferida ? ` em ${culturaPreferida}` : ''}; praga específica por confirmar.`;
+    }
+  }
+  if (confianca === 0 && (sintomas.length > 0 || (praga !== 'Indeterminado' && praga.length > 2))) {
+    confianca = 55;
+  }
+  // LLaVA marca 100 % com frequência; limitar confiança do motor de visão.
+  if (motor === 'ollama') confianca = Math.min(confianca, 78);
+  if (motor === 'gemini') confianca = Math.min(confianca, 88);
 
   return {
     praga,
@@ -375,43 +496,59 @@ function interpretarRespostaIa(textoBruto: string, motor: 'ollama' | 'gemini'): 
     recomendacao,
     motor,
     resumo,
-    imagensReferencia: [],
+    imagensReferencia: imagensReferenciaPara({
+      praga: praga.replace(/\s*\(hipótese\)\s*/i, '').trim(),
+      nomeCientifico,
+      cultura: culturaDetectada,
+      limite: 4,
+    }),
   };
 }
 
-async function diagnosticarOllama(buffer: Buffer): Promise<Diagnostico | null> {
+async function chamarOllamaChat(
+  modelo: string,
+  mensagem: { role: string; content: string; images?: string[] },
+  comFormatJson: boolean,
+): Promise<string | null> {
+  const corpoPedido: Record<string, unknown> = {
+    model: modelo,
+    stream: false,
+    options: { temperature: 0.1, num_predict: 160 },
+    messages: [mensagem],
+  };
+  if (comFormatJson) corpoPedido.format = 'json';
+  if (/qwen3|deepseek-r1/i.test(modelo)) corpoPedido.think = false;
+
+  const resposta = await fetch(`${hostOllama()}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpoPedido),
+    signal: AbortSignal.timeout(150000),
+  });
+  if (!resposta.ok) return null;
+  const corpo = (await resposta.json()) as { message?: { content?: string } };
+  return corpo.message?.content?.trim() || null;
+}
+
+async function diagnosticarOllama(buffer: Buffer, culturaPreferida?: string): Promise<Diagnostico | null> {
   const escolhido = await escolherModeloOllama();
   if (!escolhido) return null;
 
   const sinais = extrairSinais(buffer);
   const sintomas = sintomasVisuais(sinais);
+  const jpegVisao = escolhido.visao ? reduzirJpegParaVisao(buffer, 512) : buffer;
   const mensagem: { role: string; content: string; images?: string[] } = {
     role: 'user',
-    content: escolhido.visao ? promptDiagnostico() : promptDiagnostico(sinais, sintomas),
+    content: promptDiagnostico(sinais, sintomas, culturaPreferida),
   };
   if (escolhido.visao) {
-    mensagem.images = [buffer.toString('base64')];
+    mensagem.images = [jpegVisao.toString('base64')];
   }
 
-  const resposta = await fetch(`${hostOllama()}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: escolhido.modelo,
-      stream: false,
-      format: 'json',
-      think: false,
-      options: { temperature: 0.1, num_predict: 256 },
-      messages: [mensagem],
-    }),
-    signal: AbortSignal.timeout(45000),
-  });
-  if (!resposta.ok) return null;
-
-  const corpo = (await resposta.json()) as { message?: { content?: string } };
-  const texto = corpo.message?.content;
+  // Uma só tentativa: o 2.º round (~100 s) estourava o limite e caía no local.
+  const texto = await chamarOllamaChat(escolhido.modelo, mensagem, true);
   if (!texto) return null;
-  return interpretarRespostaIa(texto, 'ollama');
+  return interpretarRespostaIa(texto, 'ollama', sintomas, culturaPreferida);
 }
 
 async function comTempoLimite<T>(promessa: Promise<T>, ms: number): Promise<T | null> {
@@ -428,7 +565,13 @@ async function comTempoLimite<T>(promessa: Promise<T>, ms: number): Promise<T | 
   }
 }
 
-async function diagnosticarGemini(buffer: Buffer, chave: string): Promise<Diagnostico | null> {
+async function diagnosticarGemini(
+  buffer: Buffer,
+  chave: string,
+  culturaPreferida?: string,
+): Promise<Diagnostico | null> {
+  const sinais = extrairSinais(buffer);
+  const sintomas = sintomasVisuais(sinais);
   const resposta = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(chave)}`,
     {
@@ -438,7 +581,7 @@ async function diagnosticarGemini(buffer: Buffer, chave: string): Promise<Diagno
         contents: [
           {
             parts: [
-              { text: promptDiagnostico() },
+              { text: promptDiagnostico(sinais, sintomas, culturaPreferida) },
               { inline_data: { mime_type: 'image/jpeg', data: buffer.toString('base64') } },
             ],
           },
@@ -454,7 +597,7 @@ async function diagnosticarGemini(buffer: Buffer, chave: string): Promise<Diagno
   };
   const texto = corpo.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!texto) return null;
-  return interpretarRespostaIa(texto, 'gemini');
+  return interpretarRespostaIa(texto, 'gemini', sintomas, culturaPreferida);
 }
 
 function eJpeg(buffer: Buffer): boolean {
@@ -579,7 +722,7 @@ async function diagnosticarOpenEpi(buffer: Buffer): Promise<Diagnostico | null> 
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
     body: buffer,
-    signal: AbortSignal.timeout(28000),
+    signal: AbortSignal.timeout(8000),
   });
   if (!resposta.ok) return null;
 
@@ -597,6 +740,13 @@ async function diagnosticarOpenEpi(buffer: Buffer): Promise<Diagnostico | null> 
   if (meta.saudavel && probabilidade < 0.55) return null;
 
   const confianca = Math.max(35, Math.min(96, Math.round(probabilidade * 100)));
+  const imagensReferencia = imagensReferenciaPara({
+    codigoOpenEpi: codigo,
+    praga: meta.praga,
+    nomeCientifico: meta.nomeCientifico,
+    cultura: meta.cultura,
+    limite: 4,
+  });
   return {
     praga: meta.praga,
     nomeCientifico: meta.nomeCientifico,
@@ -606,22 +756,29 @@ async function diagnosticarOpenEpi(buffer: Buffer): Promise<Diagnostico | null> 
     recomendacao: meta.recomendacao,
     motor: 'openepi',
     resumo: `OpenEPI: ${meta.praga} com ${confianca}\u00a0% de confiança${meta.cultura ? ` em ${meta.cultura}` : ''}.`,
-    imagensReferencia: meta.imagens,
+    imagensReferencia,
   };
 }
 
 export async function diagnosticarImagem(buffer: Buffer, culturaPreferida?: string): Promise<Diagnostico> {
   const reserva = diagnosticarLocal(buffer, culturaPreferida);
+  // OpenEPI cobre milho, mandioca e feijão — não tomate.
+  const openepiServe =
+    !culturaPreferida || culturaPreferida === 'Milho' || culturaPreferida === 'Mandioca' || culturaPreferida === 'Feijão';
 
-  const openepi = await comTempoLimite(diagnosticarOpenEpi(buffer), 28000);
+  // Arrancar Ollama já (60–150 s); OpenEPI em paralelo.
+  const pedidoOllama = comTempoLimite(diagnosticarOllama(buffer, culturaPreferida), 150000);
+  const pedidoOpenEpi = openepiServe ? comTempoLimite(diagnosticarOpenEpi(buffer), 8000) : Promise.resolve(null);
+
+  const openepi = await pedidoOpenEpi;
   if (openepi && openepi.confianca > 0) return openepi;
 
-  const ollama = await comTempoLimite(diagnosticarOllama(buffer), 20000);
+  const ollama = await pedidoOllama;
   if (ollama && (ollama.confianca > 0 || ollama.sintomas.length > 0)) return ollama;
 
   const chave = process.env.GEMINI_API_KEY?.trim();
   if (chave) {
-    const ia = await comTempoLimite(diagnosticarGemini(buffer, chave), 20000);
+    const ia = await comTempoLimite(diagnosticarGemini(buffer, chave, culturaPreferida), 20000);
     if (ia && (ia.confianca > 0 || ia.sintomas.length > 0)) return ia;
   }
 

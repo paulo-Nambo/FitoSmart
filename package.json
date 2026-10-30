@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json && vite build",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tests/tsconfig.json --noEmit",
-    "test": "jest --coverage --verbose"
+    "test": "jest --coverage --verbose",
+    "referencias": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/baixar-referencias.ps1 && node scripts/gerar-catalogo-referencias.mjs"
   },
   "engines": {
     "node": ">=18"

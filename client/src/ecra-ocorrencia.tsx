@@ -490,13 +490,19 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
       />
       {diagnostico && diagnostico.confianca > 0 && !sintomasManuais ? (
         <div className="sintomas-foto" aria-live="polite">
-          <div className="diagnostico">
-            <p className="sintomas-foto-rotulo">Diagnóstico inteligente</p>
+          <div className={`diagnostico${diagnostico.motor === 'fitosmart' ? ' diagnostico-local' : ''}`}>
+            <p className="sintomas-foto-rotulo">
+              {diagnostico.motor === 'fitosmart'
+                ? 'Hipótese local (a IA de visão não respondeu)'
+                : 'Diagnóstico inteligente'}
+            </p>
             <p className="diagnostico-praga">
               {diagnostico.praga}
-              <span className="diagnostico-confianca">
-                {`${PERCENTAGEM.format(diagnostico.confianca)}\u00a0%`}
-              </span>
+              {diagnostico.motor !== 'fitosmart' ? (
+                <span className="diagnostico-confianca">
+                  {`${PERCENTAGEM.format(diagnostico.confianca)}\u00a0%`}
+                </span>
+              ) : null}
             </p>
             {diagnostico.nomeCientifico ? (
               <p className="diagnostico-ciencia" translate="no">
@@ -507,6 +513,9 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
               <p className="sintomas-foto-lista">
                 {[...sintomas].map((id) => rotuloSintoma(id)).join(' · ')}
               </p>
+            ) : null}
+            {diagnostico.resumo && diagnostico.resumo !== diagnostico.recomendacao ? (
+              <p className="diagnostico-ciencia">{diagnostico.resumo}</p>
             ) : null}
             <p className="diagnostico-acao">{diagnostico.recomendacao}</p>
             {diagnostico.imagensReferencia?.length ? (
@@ -521,6 +530,9 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
                     </li>
                   ))}
                 </ul>
+                <p className="diagnostico-refs-fonte">
+                  Exemplos da biblioteca para a praga indicada (não são a sua foto) · Commons / iNaturalist
+                </p>
               </div>
             ) : null}
             <p className="diagnostico-motor">
@@ -530,10 +542,9 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
                   ? 'IA Ollama (local)'
                   : diagnostico.motor === 'gemini'
                     ? 'IA Gemini'
-                    : 'Motor FitoSmart'}
+                    : 'Fallback FitoSmart — não identifica a praga'}
             </p>
           </div>
-          <PrevisaoTriagem sintomas={sintomas} />
           <button type="button" className="ligacao sintomas-foto-corrigir" onClick={() => setSintomasManuais(true)}>
             Corrigir sintomas
           </button>

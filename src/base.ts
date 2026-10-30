@@ -1,4 +1,7 @@
+import { readdir, readFile, stat } from 'fs/promises';
+import path from 'path';
 import { Pool, type QueryResultRow } from 'pg';
+import catalogoReferencias from './biblioteca-referencias.dados.json';
 import { CONTAS_INICIAIS, type Conta } from './credenciais';
 import type { ContaPublica, Ocorrencia, Perfil } from './tipos';
 
@@ -20,6 +23,21 @@ CREATE TABLE IF NOT EXISTS ocorrencias (
   autor_email text,
   criada_em timestamptz NOT NULL,
   imagens text[] NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS referencias_entradas (
+  id text PRIMARY KEY,
+  cultura text NOT NULL,
+  rotulo text NOT NULL,
+  cientifico text
+);
+
+CREATE TABLE IF NOT EXISTS referencias_imagens (
+  entrada_id text NOT NULL REFERENCES referencias_entradas(id) ON DELETE CASCADE,
+  nome text NOT NULL,
+  conteudo bytea NOT NULL,
+  content_type text NOT NULL DEFAULT 'image/jpeg',
+  PRIMARY KEY (entrada_id, nome)
 );
 `;
 
@@ -243,6 +261,86 @@ async function garantirBase(url: string): Promise<void> {
   }
 }
 
+function pastaReferenciasDisco(): string {
+  return path.join(process.cwd(), 'client', 'public', 'referencias');
+}
+
+function contentTypePorNome(nome: string): string {
+  if (/\.png$/i.test(nome)) return 'image/png';
+  if (/\.webp$/i.test(nome)) return 'image/webp';
+  return 'image/jpeg';
+}
+
+/** Copia o catálogo + JPEGs de client/public/referencias para PostgreSQL. */
+async function sincronizarReferencias(ligacao: Pool): Promise<void> {
+  const entradas =
+    (catalogoReferencias as { entradas?: Array<{ id: string; cultura: string; rotulo: string; cientifico: string | null }> })
+      .entradas ?? [];
+  if (entradas.length === 0) return;
+
+  const raiz = pastaReferenciasDisco();
+  for (const entrada of entradas) {
+    await ligacao.query(
+      `INSERT INTO referencias_entradas (id, cultura, rotulo, cientifico)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET
+         cultura = EXCLUDED.cultura,
+         rotulo = EXCLUDED.rotulo,
+         cientifico = EXCLUDED.cientifico`,
+      [entrada.id, entrada.cultura, entrada.rotulo, entrada.cientifico],
+    );
+
+    let ficheiros: string[] = [];
+    try {
+      ficheiros = (await readdir(path.join(raiz, entrada.id))).filter((nome) =>
+        /\.(jpe?g|png|webp)$/i.test(nome),
+      );
+    } catch {
+      continue;
+    }
+
+    for (const nome of ficheiros.sort()) {
+      const caminho = path.join(raiz, entrada.id, nome);
+      try {
+        const info = await stat(caminho);
+        if (!info.isFile() || info.size === 0 || info.size > 5 * 1024 * 1024) continue;
+        const conteudo = await readFile(caminho);
+        await ligacao.query(
+          `INSERT INTO referencias_imagens (entrada_id, nome, conteudo, content_type)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (entrada_id, nome) DO UPDATE SET
+             conteudo = EXCLUDED.conteudo,
+             content_type = EXCLUDED.content_type`,
+          [entrada.id, nome, conteudo, contentTypePorNome(nome)],
+        );
+      } catch {
+        // Ficheiro ilegível — segue para o próximo.
+      }
+    }
+  }
+}
+
+export async function lerImagemReferencia(
+  entradaId: string,
+  nome: string,
+): Promise<{ conteudo: Buffer; contentType: string } | null> {
+  if (!/^[a-z0-9-]+$/i.test(entradaId) || !/^[a-z0-9._-]+\.(jpe?g|png|webp)$/i.test(nome)) {
+    return null;
+  }
+  const ligacao = obterPool();
+  if (!ligacao) return null;
+  const resultado = await ligacao.query(
+    `SELECT conteudo, content_type FROM referencias_imagens WHERE entrada_id = $1 AND nome = $2`,
+    [entradaId, nome],
+  );
+  const linha = resultado.rows[0];
+  if (!linha) return null;
+  return {
+    conteudo: Buffer.from(linha.conteudo as Buffer),
+    contentType: String(linha.content_type || 'image/jpeg'),
+  };
+}
+
 export async function prepararBase(): Promise<void> {
   const url = urlDaBase();
   if (!url) return;
@@ -264,4 +362,5 @@ export async function prepararBase(): Promise<void> {
       CONTAS_INICIAIS[1].perfil,
     ],
   );
+  await sincronizarReferencias(ligacao);
 }

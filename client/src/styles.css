@@ -634,6 +634,12 @@ fieldset[aria-invalid='true'] { border-color: var(--risco); }
   object-fit: cover;
 }
 
+.diagnostico-refs-fonte {
+  margin: 0.45rem 0 0;
+  color: var(--mutado);
+  font-size: 0.72rem;
+}
+
 .sintomas-foto .previsao { margin-top: 0.75rem; }
 
 .sintomas-foto-corrigir {

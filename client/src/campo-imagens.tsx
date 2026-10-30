@@ -288,7 +288,9 @@ export const CampoImagens = memo(function CampoImagens({
             onDragOver={aoArrastarSobre}
             onDrop={aoLargar}
           >
-            {aAnalisar ? `A diagnosticar… (${restantes} restantes)` : `Adicionar fotografia (${restantes} restantes)`}
+            {aAnalisar
+              ? 'A analisar com LLaVA… aguarde até 2–3 min (não feche a página)'
+              : `Adicionar fotografia (${restantes} restantes)`}
           </label>
         </div>
       ) : (

@@ -1,0 +1,148 @@
+{
+  "geradoEm": "2026-10-29T17:22:35.610Z",
+  "entradas": [
+    {
+      "id": "feijao-antracnose",
+      "cultura": "Feijão",
+      "rotulo": "Antracnose do feijão",
+      "cientifico": "Colletotrichum lindemuthianum",
+      "imagens": [
+        "/referencias/feijao-antracnose/01.jpg",
+        "/referencias/feijao-antracnose/02.jpg",
+        "/referencias/feijao-antracnose/03.jpg"
+      ]
+    },
+    {
+      "id": "feijao-ferrugem",
+      "cultura": "Feijão",
+      "rotulo": "Ferrugem do feijão",
+      "cientifico": "Uromyces appendiculatus",
+      "imagens": [
+        "/referencias/feijao-ferrugem/01.jpg",
+        "/referencias/feijao-ferrugem/02.jpg"
+      ]
+    },
+    {
+      "id": "feijao-mancha-angular",
+      "cultura": "Feijão",
+      "rotulo": "Mancha angular do feijão",
+      "cientifico": "Pseudocercospora griseola",
+      "imagens": [
+        "/referencias/feijao-mancha-angular/01.jpg"
+      ]
+    },
+    {
+      "id": "mandioca-estria",
+      "cultura": "Mandioca",
+      "rotulo": "Estría castanha da mandioca",
+      "cientifico": "Cassava brown streak virus",
+      "imagens": [
+        "/referencias/mandioca-estria/01.jpg"
+      ]
+    },
+    {
+      "id": "mandioca-mosaico",
+      "cultura": "Mandioca",
+      "rotulo": "Mosaico da mandioca",
+      "cientifico": "Cassava mosaic virus",
+      "imagens": [
+        "/referencias/mandioca-mosaico/01.jpg",
+        "/referencias/mandioca-mosaico/02.jpg",
+        "/referencias/mandioca-mosaico/03.jpg"
+      ]
+    },
+    {
+      "id": "milho-ferrugem",
+      "cultura": "Milho",
+      "rotulo": "Ferrugem do milho",
+      "cientifico": "Puccinia sorghi",
+      "imagens": [
+        "/referencias/milho-ferrugem/01.jpg",
+        "/referencias/milho-ferrugem/02.jpg",
+        "/referencias/milho-ferrugem/03.jpg"
+      ]
+    },
+    {
+      "id": "milho-lagarta-cartucho",
+      "cultura": "Milho",
+      "rotulo": "Lagarta-do-cartucho",
+      "cientifico": "Spodoptera frugiperda",
+      "imagens": [
+        "/referencias/milho-lagarta-cartucho/01.jpg",
+        "/referencias/milho-lagarta-cartucho/02.jpg",
+        "/referencias/milho-lagarta-cartucho/03.jpg"
+      ]
+    },
+    {
+      "id": "milho-queima-foliar",
+      "cultura": "Milho",
+      "rotulo": "Queima foliar do milho",
+      "cientifico": "Exserohilum turcicum",
+      "imagens": [
+        "/referencias/milho-queima-foliar/01.jpg",
+        "/referencias/milho-queima-foliar/02.jpg",
+        "/referencias/milho-queima-foliar/03.jpg"
+      ]
+    },
+    {
+      "id": "milho-riscado",
+      "cultura": "Milho",
+      "rotulo": "Vírus do riscado do milho",
+      "cientifico": "Maize streak virus",
+      "imagens": [
+        "/referencias/milho-riscado/01.jpg"
+      ]
+    },
+    {
+      "id": "tomate-acaro",
+      "cultura": "Tomate",
+      "rotulo": "Ácaro-rajado",
+      "cientifico": "Tetranychus urticae",
+      "imagens": [
+        "/referencias/tomate-acaro/01.jpg",
+        "/referencias/tomate-acaro/02.jpg",
+        "/referencias/tomate-acaro/03.jpg"
+      ]
+    },
+    {
+      "id": "tomate-alternaria",
+      "cultura": "Tomate",
+      "rotulo": "Alternária / pinta-preta",
+      "cientifico": "Alternaria solani",
+      "imagens": [
+        "/referencias/tomate-alternaria/01.jpg",
+        "/referencias/tomate-alternaria/02.jpg"
+      ]
+    },
+    {
+      "id": "tomate-enrolamento",
+      "cultura": "Tomate",
+      "rotulo": "Vírus do enrolamento amarelo",
+      "cientifico": "Tomato yellow leaf curl virus",
+      "imagens": [
+        "/referencias/tomate-enrolamento/01.jpg"
+      ]
+    },
+    {
+      "id": "tomate-mildio",
+      "cultura": "Tomate",
+      "rotulo": "Míldio do tomateiro",
+      "cientifico": "Phytophthora infestans",
+      "imagens": [
+        "/referencias/tomate-mildio/01.jpg",
+        "/referencias/tomate-mildio/02.jpg",
+        "/referencias/tomate-mildio/03.jpg"
+      ]
+    },
+    {
+      "id": "tomate-tuta",
+      "cultura": "Tomate",
+      "rotulo": "Traça-do-tomateiro",
+      "cientifico": "Tuta absoluta",
+      "imagens": [
+        "/referencias/tomate-tuta/01.jpg",
+        "/referencias/tomate-tuta/02.jpg"
+      ]
+    }
+  ]
+}

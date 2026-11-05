@@ -4,6 +4,7 @@ import path from 'path';
 import type { Request, Response } from 'express';
 import { identificarPedido } from './auth';
 import { acrescentarImagem, obterOcorrencia } from './base';
+import { podeRegistarOcorrencia, podeVerTodasOcorrencias } from './perfis';
 
 const MAXIMO_BYTES = 2 * 1024 * 1024;
 const MAXIMO_POR_OCORRENCIA = 3;
@@ -31,7 +32,7 @@ function eJpeg(buffer: Buffer): boolean {
 async function podeVer(req: Request, autorEmail: string | null): Promise<boolean> {
   const identidade = identificarPedido(req);
   if (!identidade) return false;
-  if (identidade.perfil === 'TECNICO') return true;
+  if (podeVerTodasOcorrencias(identidade.perfil)) return true;
   if (!identidade.email) return false;
   return identidade.email === autorEmail;
 }
@@ -74,7 +75,10 @@ export async function guardarImagemHandler(req: Request, res: Response): Promise
     res.status(404).json({ erro: 'Ocorrência não encontrada' });
     return;
   }
-  if (identidade.perfil !== 'TECNICO' && identidade.email !== ocorrencia.autorEmail) {
+  if (
+    !podeRegistarOcorrencia(identidade.perfil) ||
+    (!podeVerTodasOcorrencias(identidade.perfil) && identidade.email !== ocorrencia.autorEmail)
+  ) {
     res.status(403).json({ erro: 'Acesso negado' });
     return;
   }

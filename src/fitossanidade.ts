@@ -11,7 +11,9 @@ import {
   ultimaEncaminhada,
 } from './base';
 import { existeReferencia, rotuloReferencia } from './biblioteca-referencias';
+import { obterLimiarTriagem, reporConfiguracao } from './configuracao';
 import { reporImagens } from './imagens';
+import { podeRegistarOcorrencia, podeValidar } from './perfis';
 import type {
   CamposOcorrencia,
   EstadoOcorrencia,
@@ -23,8 +25,10 @@ import type {
 export function reporEstado(): void {
   reporBase();
   reporImagens();
+  reporConfiguracao();
 }
 
+/** Valor inicial; em runtime usa-se obterLimiarTriagem() (admin de configuração). */
 export const LIMIAR_TRIAGEM = 60;
 
 export const FICHA_BASE = ['manchas_amarelas', 'folhas_secas'] as const;
@@ -59,7 +63,7 @@ export function calcularTriagem(sintomasInput: string[], sintomasFicha: string[]
     if (entrada.has(sintoma)) coincidencias += 1;
   }
   const confianca = sintomasFicha.length === 0 ? 0 : Math.round((coincidencias / sintomasFicha.length) * 100);
-  const status: ResultadoTriagem['status'] = confianca >= LIMIAR_TRIAGEM ? 'TRIADA' : 'ENCAMINHADA';
+  const status: ResultadoTriagem['status'] = confianca >= obterLimiarTriagem() ? 'TRIADA' : 'ENCAMINHADA';
   return { confianca, status };
 }
 
@@ -106,6 +110,12 @@ function lerReferenciaId(valor: unknown): string | null | undefined {
 }
 
 export async function registrarOcorrenciaHandler(req: Request, res: Response): Promise<void> {
+  const identidadeRegisto = identificarPedido(req);
+  if (identidadeRegisto && !podeRegistarOcorrencia(identidadeRegisto.perfil)) {
+    res.status(403).json({ erro: 'Acesso negado: o seu perfil não regista ocorrências' });
+    return;
+  }
+
   const sintomas = lerSintomas(req.body?.sintomas);
   if (!sintomas || sintomas.length === 0) {
     res.status(400).json({ erro: 'Deve informar ao menos 1 sintoma' });
@@ -149,7 +159,7 @@ export async function registrarOcorrenciaHandler(req: Request, res: Response): P
   }
 
   const triagem = calcularTriagem(sintomas, [...FICHA_BASE]);
-  const identidade = identificarPedido(req);
+  const identidade = identidadeRegisto ?? identificarPedido(req);
 
   let parcelaId: string | null = null;
   let parcelaNomeGuardado: string | null = null;
@@ -225,7 +235,7 @@ export async function validarTecnicoHandler(req: Request, res: Response): Promis
   }
 
   const identidade = identificarPedido(req);
-  if (!identidade || identidade.perfil !== 'TECNICO') {
+  if (!identidade || !podeValidar(identidade.perfil)) {
     res.status(403).json({ erro: 'Acesso negado: Requer perfil TECNICO' });
     return;
   }

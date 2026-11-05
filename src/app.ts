@@ -2,7 +2,8 @@ import path from 'path';
 import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { actualizarPerfilHandler, criarUtilizadorHandler, listarUtilizadoresHandler } from './acesso';
-import { loginHandler } from './auth';
+import { actualizarContaHandler, alterarSenhaHandler, loginHandler } from './auth';
+import { actualizarConfiguracaoHandler, obterConfiguracaoHandler } from './configuracao';
 import {
   listarOcorrenciasHandler,
   registrarOcorrenciaHandler,
@@ -18,7 +19,12 @@ export function criarApp() {
   app.use(express.json({ limit: '16kb' }));
   app.use(
     cors({
-      origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+      origin: [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3002',
+        'http://127.0.0.1:3002',
+      ],
     }),
   );
 
@@ -26,6 +32,8 @@ export function criarApp() {
     res.json({ estado: 'ok' });
   });
   app.post('/api/login', loginHandler);
+  app.post('/api/conta/senha', alterarSenhaHandler);
+  app.patch('/api/conta', actualizarContaHandler);
   app.get('/api/ocorrencias', listarOcorrenciasHandler);
   app.post('/api/ocorrencias', registrarOcorrenciaHandler);
   app.post('/api/diagnostico', express.raw({ type: 'image/jpeg', limit: '2mb' }), diagnosticoHandler);
@@ -39,6 +47,8 @@ export function criarApp() {
   app.get('/api/utilizadores', listarUtilizadoresHandler);
   app.post('/api/utilizadores', criarUtilizadorHandler);
   app.patch('/api/utilizadores/:email', actualizarPerfilHandler);
+  app.get('/api/configuracao', obterConfiguracaoHandler);
+  app.patch('/api/configuracao', actualizarConfiguracaoHandler);
 
   // Com DATABASE_URL: imagens vêm da BD; sem BD (ou miss): ficheiros em public/.
   app.get('/referencias/:entradaId/:nome', servirReferenciaHandler);

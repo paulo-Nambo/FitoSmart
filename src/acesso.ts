@@ -1,25 +1,39 @@
 import type { Request, Response } from 'express';
-import { emailValido, identificarPedido, senhaValida } from './auth';
+import { emailValido, identificarPedido } from './auth';
 import { actualizarPerfil, ContaDuplicada, criarUtilizador, listarUtilizadores } from './base';
 import { hashSenha } from './credenciais';
-import type { Perfil } from './tipos';
+import {
+  ePerfil,
+  podeGerirContas,
+  podeValidar,
+  ROTULO_PERFIL,
+  type Perfil,
+} from './perfis';
+import { mensagemSenhaNovaInvalida, senhaNovaValida } from './senha';
 
-function exigirTecnico(req: Request, res: Response): string | null {
+function exigirAdminContas(req: Request, res: Response): string | null {
   const identidade = identificarPedido(req);
   if (!identidade?.email) {
     res.status(401).json({ erro: 'Sessão inválida' });
     return null;
   }
-  if (identidade.perfil !== 'TECNICO') {
-    res.status(403).json({ erro: 'Acesso negado: Requer perfil TECNICO' });
+  if (!podeGerirContas(identidade.perfil)) {
+    res.status(403).json({ erro: 'Acesso negado: Requer perfil ADMIN_SISTEMA ou ADMIN_CONTAS' });
     return null;
   }
   return identidade.email;
 }
 
+function exigirAdminSistemaParaPerfil(req: Request, res: Response, perfil: Perfil): boolean {
+  if (perfil !== 'ADMIN_SISTEMA') return true;
+  const identidade = identificarPedido(req);
+  if (identidade?.perfil === 'ADMIN_SISTEMA') return true;
+  res.status(403).json({ erro: 'Só o administrador do sistema pode atribuir o perfil Administrador do sistema.' });
+  return false;
+}
+
 function lerPerfil(valor: unknown): Perfil | null {
-  if (valor === 'AGRICULTOR' || valor === 'TECNICO') return valor;
-  return null;
+  return ePerfil(valor) ? valor : null;
 }
 
 function lerNome(valor: unknown): string | null {
@@ -39,7 +53,7 @@ function lerOrganizacao(valor: unknown): string | null | undefined {
 }
 
 export async function listarUtilizadoresHandler(req: Request, res: Response): Promise<void> {
-  if (!exigirTecnico(req, res)) return;
+  if (!exigirAdminContas(req, res)) return;
   try {
     const utilizadores = await listarUtilizadores();
     res.json({ utilizadores });
@@ -49,7 +63,7 @@ export async function listarUtilizadoresHandler(req: Request, res: Response): Pr
 }
 
 export async function criarUtilizadorHandler(req: Request, res: Response): Promise<void> {
-  if (!exigirTecnico(req, res)) return;
+  if (!exigirAdminContas(req, res)) return;
 
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const senha = typeof req.body?.senha === 'string' ? req.body.senha : '';
@@ -61,12 +75,14 @@ export async function criarUtilizadorHandler(req: Request, res: Response): Promi
     res.status(400).json({ erro: 'Indique um email válido, por exemplo nome@uem.mz.' });
     return;
   }
-  if (!senhaValida(senha)) {
-    res.status(400).json({ erro: 'A senha deve ter pelo menos 6 caracteres.' });
+  if (!senhaNovaValida(senha)) {
+    res.status(400).json({ erro: mensagemSenhaNovaInvalida(senha) });
     return;
   }
   if (!perfil) {
-    res.status(400).json({ erro: 'Escolha o perfil Agricultor ou Técnico.' });
+    res.status(400).json({
+      erro: `Escolha um perfil válido (${Object.values(ROTULO_PERFIL).join(', ')}).`,
+    });
     return;
   }
   if (!nome) {
@@ -77,6 +93,7 @@ export async function criarUtilizadorHandler(req: Request, res: Response): Promi
     res.status(400).json({ erro: 'Organização inválida (máx. 80 caracteres).' });
     return;
   }
+  if (!exigirAdminSistemaParaPerfil(req, res, perfil)) return;
 
   try {
     await criarUtilizador({ email, hash: hashSenha(senha), perfil, nome, organizacao });
@@ -93,7 +110,7 @@ export async function criarUtilizadorHandler(req: Request, res: Response): Promi
 }
 
 export async function actualizarPerfilHandler(req: Request, res: Response): Promise<void> {
-  const autor = exigirTecnico(req, res);
+  const autor = exigirAdminContas(req, res);
   if (!autor) return;
 
   const email = typeof req.params.email === 'string' ? decodeURIComponent(req.params.email).trim().toLowerCase() : '';
@@ -103,25 +120,53 @@ export async function actualizarPerfilHandler(req: Request, res: Response): Prom
     return;
   }
   if (email === autor) {
-    res.status(409).json({ erro: 'Não pode alterar o seu próprio perfil nesta sessão. Peça a outro técnico.' });
+    res.status(409).json({
+      erro: 'Não pode alterar o seu próprio perfil nesta sessão. Peça a outro administrador.',
+    });
     return;
   }
+  if (!exigirAdminSistemaParaPerfil(req, res, perfil)) return;
 
   try {
-    if (perfil === 'AGRICULTOR') {
-      const contas = await listarUtilizadores();
-      let tecnicos = 0;
-      let eraTecnico = false;
-      for (const conta of contas) {
-        if (conta.perfil !== 'TECNICO') continue;
-        tecnicos += 1;
-        if (conta.email === email) eraTecnico = true;
-      }
-      if (eraTecnico && tecnicos < 2) {
-        res.status(409).json({ erro: 'Tem de permanecer pelo menos um técnico.' });
+    const contas = await listarUtilizadores();
+    const alvo = contas.find((conta) => conta.email === email);
+    if (!alvo) {
+      res.status(404).json({ erro: 'Conta não encontrada.' });
+      return;
+    }
+
+    if (alvo.perfil === 'ADMIN_SISTEMA' && perfil !== 'ADMIN_SISTEMA') {
+      const identidade = identificarPedido(req);
+      if (identidade?.perfil !== 'ADMIN_SISTEMA') {
+        res.status(403).json({ erro: 'Só o administrador do sistema pode alterar esse perfil.' });
         return;
       }
     }
+
+    if (podeValidar(alvo.perfil) && !podeValidar(perfil)) {
+      const validadores = contas.filter((conta) => podeValidar(conta.perfil)).length;
+      if (validadores < 2) {
+        res.status(409).json({ erro: 'Tem de permanecer pelo menos um técnico ou gestor que possa validar.' });
+        return;
+      }
+    }
+
+    if (podeGerirContas(alvo.perfil) && !podeGerirContas(perfil)) {
+      const admins = contas.filter((conta) => podeGerirContas(conta.perfil)).length;
+      if (admins < 2) {
+        res.status(409).json({ erro: 'Tem de permanecer pelo menos um administrador do sistema ou de contas.' });
+        return;
+      }
+    }
+
+    if (alvo.perfil === 'ADMIN_SISTEMA' && perfil !== 'ADMIN_SISTEMA') {
+      const sistemas = contas.filter((conta) => conta.perfil === 'ADMIN_SISTEMA').length;
+      if (sistemas < 2) {
+        res.status(409).json({ erro: 'Tem de permanecer pelo menos um administrador do sistema.' });
+        return;
+      }
+    }
+
     const actualizado = await actualizarPerfil(email, perfil);
     if (!actualizado) {
       res.status(404).json({ erro: 'Conta não encontrada.' });
@@ -133,6 +178,11 @@ export async function actualizarPerfilHandler(req: Request, res: Response): Prom
   }
 
   const contas = await listarUtilizadores();
-  const utilizador = contas.find((item) => item.email === email) ?? { email, perfil, nome: email, organizacao: null };
+  const utilizador = contas.find((item) => item.email === email) ?? {
+    email,
+    perfil,
+    nome: email,
+    organizacao: null,
+  };
   res.json({ utilizador });
 }

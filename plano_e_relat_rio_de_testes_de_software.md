@@ -26,7 +26,7 @@ A escolha dos casos de teste seguiu as técnicas de **Partições de Equivalênc
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **T01** | Unitário | Validação de Email | Partição de Equivalência | Email sem caractere `@` (`"paulo.baltazar.uem.mz"`) | Retorna `false` (inválido) |
 | **T02** | Unitário | Tamanho de Senha | Valor de Fronteira | Senha com 5 caracteres (`"12345"`, limite mínimo é 6) | Retorna `false` (rejeitada) |
-| **T03** | Integração | Autenticação JWT | Caminho Feliz | Credenciais válidas (`agricultor@uem.mz`, `123456`) | Retorna Token JWT válido |
+| **T03** | Integração | Autenticação JWT | Caminho Feliz | Credenciais válidas (`paulo.baltazar@uem.mz`, `FitoSmart1!`) | Retorna Token JWT válido |
 | **T04** | Unitário | Geolocalização (Lat) | Valor de Fronteira (Inválido) | Latitude $95.0^\circ$ (fora da gama $[-90, 90]$) | Mensagem: `"Latitude fora dos limites"` |
 | **T05** | Unitário | Geolocalização (Lng) | Valor de Fronteira (Válido) | Longitude $-180.0^\circ$ (limite exato válido) | Passa na validação (`null`) |
 | **T06** | Regra | Sintomas Obrigatórios | Teste de Defeito / Erro | Submeter ocorrência com array de sintomas vazio `[]` | HTTP 400: `"Deve informar ao menos 1 sintoma"` |
@@ -74,7 +74,7 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
 
   // T03: Autenticação JWT
   test('T03 [Integração]: Deve gerar token ao efetuar login válido', () => {
-    const loginSucesso = { email: "agricultor@uem.mz", pass: "123456" };
+    const loginSucesso = { email: "paulo.baltazar@uem.mz", pass: "FitoSmart1!" };
     const tokenSimulado = loginSucesso.pass === "123456" ? "jwt-token-valido" : null;
     expect(tokenSimulado).not.toBeNull();
   });

@@ -3,14 +3,15 @@ import { readdir, readFile, stat } from 'fs/promises';
 import path from 'path';
 import { Pool, type QueryResultRow } from 'pg';
 import catalogoReferencias from './biblioteca-referencias.dados.json';
-import { CONTAS_INICIAIS, type Conta } from './credenciais';
-import type { ContaPublica, Ocorrencia, Parcela, Perfil, Severidade } from './tipos';
+import { CONTAS_INICIAIS, EMAILS_DEMO_REMOVER, type Conta } from './credenciais';
+import { ePerfil, podeVerTodasOcorrencias, type Perfil } from './perfis';
+import type { ContaPublica, Ocorrencia, Parcela, Severidade } from './tipos';
 
 const ESQUEMA = `
 CREATE TABLE IF NOT EXISTS utilizadores (
   email text PRIMARY KEY,
   hash bytea NOT NULL,
-  perfil text NOT NULL CHECK (perfil IN ('AGRICULTOR', 'TECNICO')),
+  perfil text NOT NULL,
   nome text NOT NULL DEFAULT '',
   organizacao text
 );
@@ -114,9 +115,11 @@ function mapearContaPublica(linha: {
   nome?: string | null;
   organizacao?: string | null;
 }): ContaPublica {
+  const perfilBruto = String(linha.perfil);
+  const perfil: Perfil = ePerfil(perfilBruto) ? perfilBruto : 'AGRICULTOR';
   return {
     email: String(linha.email),
-    perfil: linha.perfil === 'TECNICO' ? 'TECNICO' : 'AGRICULTOR',
+    perfil,
     nome: String(linha.nome ?? '').trim() || String(linha.email).split('@')[0] || 'Sem nome',
     organizacao:
       linha.organizacao === null || linha.organizacao === undefined || String(linha.organizacao).trim() === ''
@@ -263,15 +266,22 @@ export async function criarOcorrencia(ocorrencia: Ocorrencia): Promise<void> {
 
 export async function listarOcorrencias(perfil: Perfil, email: string | null): Promise<Ocorrencia[]> {
   const ligacao = obterPool();
+  const verTodas = podeVerTodasOcorrencias(perfil) || email === null;
   if (!ligacao) {
-    if (perfil === 'TECNICO' || email === null) return [...ocorrenciasMemoria];
+    if (verTodas) return [...ocorrenciasMemoria];
     return ocorrenciasMemoria.filter((item) => item.autorEmail === email);
+  }
+  if (verTodas) {
+    const resultado = await ligacao.query(
+      `SELECT ${COLUNAS_OCORRENCIA} FROM ${FROM_OCORRENCIA} ORDER BY o.criada_em ASC`,
+    );
+    return resultado.rows.map(mapear);
   }
   const resultado = await ligacao.query(
     `SELECT ${COLUNAS_OCORRENCIA} FROM ${FROM_OCORRENCIA}
-     WHERE $1 = 'TECNICO' OR $2::text IS NULL OR o.autor_email = $2
+     WHERE o.autor_email = $1
      ORDER BY o.criada_em ASC`,
-    [perfil, email],
+    [email],
   );
   return resultado.rows.map(mapear);
 }
@@ -383,6 +393,37 @@ export async function actualizarPerfil(email: string, perfil: Perfil): Promise<b
   return (resultado.rowCount ?? 0) > 0;
 }
 
+export async function actualizarSenha(email: string, hash: Buffer): Promise<boolean> {
+  const ligacao = obterPool();
+  if (!ligacao) {
+    const alvo = utilizadoresMemoria.find((conta) => conta.email === email);
+    if (!alvo) return false;
+    alvo.hash = Buffer.from(hash);
+    return true;
+  }
+  const resultado = await ligacao.query(`UPDATE utilizadores SET hash = $2 WHERE email = $1`, [email, hash]);
+  return (resultado.rowCount ?? 0) > 0;
+}
+
+export async function actualizarTitular(
+  email: string,
+  dados: { nome: string; organizacao: string | null },
+): Promise<boolean> {
+  const ligacao = obterPool();
+  if (!ligacao) {
+    const alvo = utilizadoresMemoria.find((conta) => conta.email === email);
+    if (!alvo) return false;
+    alvo.nome = dados.nome;
+    alvo.organizacao = dados.organizacao;
+    return true;
+  }
+  const resultado = await ligacao.query(
+    `UPDATE utilizadores SET nome = $2, organizacao = $3 WHERE email = $1`,
+    [email, dados.nome, dados.organizacao],
+  );
+  return (resultado.rowCount ?? 0) > 0;
+}
+
 export async function procurarUtilizador(email: string): Promise<Conta | undefined> {
   const ligacao = obterPool();
   if (!ligacao) return utilizadoresMemoria.find((conta) => conta.email === email);
@@ -392,7 +433,8 @@ export async function procurarUtilizador(email: string): Promise<Conta | undefin
   );
   const linha = resultado.rows[0];
   if (!linha) return undefined;
-  const perfil = linha.perfil === 'TECNICO' ? 'TECNICO' : 'AGRICULTOR';
+  const perfilBruto = String(linha.perfil);
+  const perfil: Perfil = ePerfil(perfilBruto) ? perfilBruto : 'AGRICULTOR';
   const nome = String(linha.nome ?? '').trim() || String(linha.email).split('@')[0] || 'Sem nome';
   const organizacao =
     linha.organizacao === null || linha.organizacao === undefined || String(linha.organizacao).trim() === ''
@@ -524,24 +566,18 @@ export async function prepararBase(): Promise<void> {
   await ligacao.query(`ALTER TABLE ocorrencias ADD COLUMN IF NOT EXISTS validada_em timestamptz`);
   await ligacao.query(`ALTER TABLE utilizadores ADD COLUMN IF NOT EXISTS nome text NOT NULL DEFAULT ''`);
   await ligacao.query(`ALTER TABLE utilizadores ADD COLUMN IF NOT EXISTS organizacao text`);
-  await ligacao.query(
-    `INSERT INTO utilizadores (email, hash, perfil, nome, organizacao)
-     VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)
-     ON CONFLICT (email) DO UPDATE SET
-       nome = CASE WHEN utilizadores.nome = '' THEN EXCLUDED.nome ELSE utilizadores.nome END,
-       organizacao = COALESCE(utilizadores.organizacao, EXCLUDED.organizacao)`,
-    [
-      CONTAS_INICIAIS[0].email,
-      CONTAS_INICIAIS[0].hash,
-      CONTAS_INICIAIS[0].perfil,
-      CONTAS_INICIAIS[0].nome,
-      CONTAS_INICIAIS[0].organizacao,
-      CONTAS_INICIAIS[1].email,
-      CONTAS_INICIAIS[1].hash,
-      CONTAS_INICIAIS[1].perfil,
-      CONTAS_INICIAIS[1].nome,
-      CONTAS_INICIAIS[1].organizacao,
-    ],
-  );
+  await ligacao.query(`ALTER TABLE utilizadores DROP CONSTRAINT IF EXISTS utilizadores_perfil_check`);
+  if (EMAILS_DEMO_REMOVER.length > 0) {
+    await ligacao.query(`DELETE FROM utilizadores WHERE email = ANY($1::text[])`, [EMAILS_DEMO_REMOVER]);
+  }
+  for (const conta of CONTAS_INICIAIS) {
+    await ligacao.query(
+      `INSERT INTO utilizadores (email, hash, perfil, nome, organizacao)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (email) DO UPDATE SET
+         perfil = EXCLUDED.perfil`,
+      [conta.email, conta.hash, conta.perfil, conta.nome, conta.organizacao],
+    );
+  }
   await sincronizarReferencias(ligacao);
 }

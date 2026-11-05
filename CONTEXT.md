@@ -37,7 +37,7 @@ Resultado de análise de imagem (motor OpenEPI / Ollama / Gemini / fallback loca
 _Avoid_: Ocorrência, triagem
 
 **Conta**:
-Credencial de acesso (email + senha) ligada a um Titular e a um perfil (AGRICULTOR ou TECNICO).
+Credencial de acesso (email + senha) ligada a um Titular e a um Perfil.
 _Avoid_: Utilizador genérico, login, user
 
 **Titular**:
@@ -47,3 +47,7 @@ _Avoid_: Dono, owner, account holder
 **Organização**:
 Unidade ou entidade do Titular (cooperativa, UEM, associação), opcional na Conta.
 _Avoid_: Empresa, instituição (quando se refere ao campo da conta)
+
+**Perfil**:
+Papel único da Conta: AGRICULTOR (Worker), TECNICO (validação de campo), GESTOR (Manager), VISUALIZADOR (Viewer), ADMIN_CONTAS (Account Admin), ADMIN_CONFIG (Config Admin) ou ADMIN_SISTEMA (Administrador do sistema — gestão de contas e configuração). A conta de arranque é Paulo Baltazar (`paulo.baltazar@uem.mz`).
+_Avoid_: Role combinável, permissão solta, admin genérico, contas de demonstração

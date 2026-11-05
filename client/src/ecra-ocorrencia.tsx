@@ -42,6 +42,7 @@ interface EcraOcorrenciaProps {
   token: string;
   ocorrencias: Ocorrencia[];
   aoRegistar: (ocorrencia: Ocorrencia, mensagem?: string) => void;
+  podeCriar?: boolean;
 }
 
 const ListaOcorrencias = memo(function ListaOcorrencias({
@@ -77,16 +78,24 @@ const ListaOcorrencias = memo(function ListaOcorrencias({
   );
 });
 
-export function EcraOcorrencia({ menu, token, ocorrencias, aoRegistar }: EcraOcorrenciaProps) {
+export function EcraOcorrencia({
+  menu,
+  token,
+  ocorrencias,
+  aoRegistar,
+  podeCriar = true,
+}: EcraOcorrenciaProps) {
   return (
     <>
       <section hidden={menu !== 'painel'}>
         <h1 className="titulo">Painel</h1>
         {menu === 'painel' ? <PainelEstatisticas ocorrencias={ocorrencias} /> : null}
       </section>
-      <div hidden={menu !== 'nova'}>
-        <FormularioOcorrencia token={token} aoRegistar={aoRegistar} activo={menu === 'nova'} />
-      </div>
+      {podeCriar ? (
+        <div hidden={menu !== 'nova'}>
+          <FormularioOcorrencia token={token} aoRegistar={aoRegistar} activo={menu === 'nova'} />
+        </div>
+      ) : null}
       <div hidden={menu !== 'ocorrencias'}>
         <ListaOcorrencias token={token} ocorrencias={ocorrencias} />
       </div>

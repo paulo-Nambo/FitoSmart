@@ -2,11 +2,13 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { emailValido, senhaValida } from '../src/auth';
 import { criarApp } from '../src/app';
+import { CONTA_ADMIN_SISTEMA } from '../src/credenciais';
 import {
   calcularTriagem,
   reporEstado,
   validarCamposOcorrencia,
 } from '../src/fitossanidade';
+import { senhaNovaValida } from '../src/senha';
 
 const app = criarApp();
 
@@ -26,14 +28,80 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
   test('T03 [Integração]: Deve gerar token ao efetuar login válido', async () => {
     const res = await request(app)
       .post('/api/login')
-      .send({ email: 'agricultor@uem.mz', senha: '123456' });
+      .send({ email: CONTA_ADMIN_SISTEMA.email, senha: CONTA_ADMIN_SISTEMA.senha });
 
     expect(res.status).toBe(200);
     const payload = jwt.verify(res.body.token, process.env.JWT_SECRET as string);
     expect(payload).toMatchObject({
-      email: 'agricultor@uem.mz',
-      perfil: 'AGRICULTOR',
+      email: CONTA_ADMIN_SISTEMA.email,
+      perfil: 'ADMIN_SISTEMA',
     });
+  });
+
+  test('Nova senha fraca é rejeitada pela política reforçada', () => {
+    expect(senhaNovaValida('123456')).toBe(false);
+    expect(senhaNovaValida('abcdefg1')).toBe(false);
+    expect(senhaNovaValida('FitoSmart1!')).toBe(true);
+  });
+
+  test('Editar perfil actualiza titular da conta autenticada', async () => {
+    const login = await request(app)
+      .post('/api/login')
+      .send({ email: CONTA_ADMIN_SISTEMA.email, senha: CONTA_ADMIN_SISTEMA.senha });
+    expect(login.status).toBe(200);
+
+    const semSessao = await request(app).patch('/api/conta').send({ nome: 'Outro Nome' });
+    expect(semSessao.status).toBe(401);
+
+    const ok = await request(app)
+      .patch('/api/conta')
+      .set('Authorization', `Bearer ${login.body.token}`)
+      .send({ nome: 'Paulo Carlos Baltazar', organizacao: 'UEM · Fitossanidade' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.utilizador).toMatchObject({
+      email: 'paulo.baltazar@uem.mz',
+      nome: 'Paulo Carlos Baltazar',
+      organizacao: 'UEM · Fitossanidade',
+    });
+  });
+
+  test('Alterar senha exige senha actual e aceita nova senha válida', async () => {
+    const email = CONTA_ADMIN_SISTEMA.email;
+    const actual = CONTA_ADMIN_SISTEMA.senha;
+    const proxima = 'OutraSenha2!';
+
+    const fraca = await request(app).post('/api/conta/senha').send({
+      email,
+      senhaActual: actual,
+      senhaNova: 'fraca1',
+    });
+    expect(fraca.status).toBe(400);
+
+    const falha = await request(app).post('/api/conta/senha').send({
+      email,
+      senhaActual: 'errada1',
+      senhaNova: proxima,
+    });
+    expect(falha.status).toBe(401);
+
+    try {
+      const ok = await request(app).post('/api/conta/senha').send({
+        email,
+        senhaActual: actual,
+        senhaNova: proxima,
+      });
+      expect(ok.status).toBe(200);
+      expect(ok.body.ok).toBe(true);
+
+      const loginNova = await request(app).post('/api/login').send({ email, senha: proxima });
+      expect(loginNova.status).toBe(200);
+    } finally {
+      await request(app).post('/api/conta/senha').send({
+        email,
+        senhaActual: proxima,
+        senhaNova: actual,
+      });
+    }
   });
 
   test('T04 [Fronteira]: Deve emitir erro para Latitude > 90', () => {

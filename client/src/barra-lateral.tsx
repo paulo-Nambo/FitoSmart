@@ -8,25 +8,58 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
+import {
+  INICIAIS_PERFIL,
+  ROTULO_PERFIL,
+  type Perfil,
+} from './perfis';
 import type { Sessao } from './sessao';
 
-export type MenuId = 'painel' | 'nova' | 'ocorrencias' | 'fila' | 'acesso' | 'tempo';
+export type MenuId = 'painel' | 'nova' | 'ocorrencias' | 'fila' | 'acesso' | 'config' | 'tempo';
 
 type ItemMenu = { id: MenuId; rotulo: string; grupo: 'principal' | 'administracao' };
 
-const MENUS_AGRICULTOR = [
-  { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
-  { id: 'nova', rotulo: 'Nova ocorrência', grupo: 'principal' },
-  { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
-  { id: 'tempo', rotulo: 'Previsão do tempo', grupo: 'principal' },
-] as const satisfies ReadonlyArray<ItemMenu>;
+const MENU_TEMPO = { id: 'tempo', rotulo: 'Previsão do tempo', grupo: 'principal' } as const;
 
-const MENUS_TECNICO = [
-  { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
-  { id: 'fila', rotulo: 'Fila técnica', grupo: 'principal' },
-  { id: 'tempo', rotulo: 'Previsão do tempo', grupo: 'principal' },
-  { id: 'acesso', rotulo: 'Gestão de acesso', grupo: 'administracao' },
-] as const satisfies ReadonlyArray<ItemMenu>;
+const MENUS_POR_PERFIL: Record<Perfil, ReadonlyArray<ItemMenu>> = {
+  AGRICULTOR: [
+    { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
+    { id: 'nova', rotulo: 'Nova ocorrência', grupo: 'principal' },
+    { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
+    MENU_TEMPO,
+  ],
+  TECNICO: [
+    { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
+    { id: 'fila', rotulo: 'Fila técnica', grupo: 'principal' },
+    MENU_TEMPO,
+  ],
+  GESTOR: [
+    { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
+    { id: 'fila', rotulo: 'Fila técnica', grupo: 'principal' },
+    { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
+    MENU_TEMPO,
+  ],
+  VISUALIZADOR: [
+    { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
+    { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
+    MENU_TEMPO,
+  ],
+  ADMIN_CONTAS: [
+    { id: 'acesso', rotulo: 'Gestão de acesso', grupo: 'administracao' },
+    MENU_TEMPO,
+  ],
+  ADMIN_CONFIG: [
+    { id: 'config', rotulo: 'Configuração', grupo: 'administracao' },
+    MENU_TEMPO,
+  ],
+  ADMIN_SISTEMA: [
+    { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
+    { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
+    { id: 'acesso', rotulo: 'Gestão de acesso', grupo: 'administracao' },
+    { id: 'config', rotulo: 'Configuração', grupo: 'administracao' },
+    MENU_TEMPO,
+  ],
+};
 
 const ICONES: Record<MenuId, ReactNode> = {
   painel: (
@@ -91,16 +124,18 @@ const ICONES: Record<MenuId, ReactNode> = {
       />
     </svg>
   ),
-};
-
-const ROTULO_PERFIL: Record<Sessao['perfil'], string> = {
-  AGRICULTOR: 'Agricultor',
-  TECNICO: 'Técnico',
-};
-
-const INICIAIS_PERFIL: Record<Sessao['perfil'], string> = {
-  AGRICULTOR: 'AG',
-  TECNICO: 'TE',
+  config: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6.2 6.2l1.4 1.4M16.4 16.4l1.4 1.4M6.2 17.8l1.4-1.4M16.4 7.6l1.4-1.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  ),
 };
 
 const SETA_CONTA = (
@@ -147,6 +182,8 @@ const MenuConta = memo(function MenuConta({
   email,
   nome,
   organizacao,
+  aoEditarPerfil,
+  aoAlterarSenha,
   aoSair,
   compacto,
 }: {
@@ -154,6 +191,8 @@ const MenuConta = memo(function MenuConta({
   email: string;
   nome?: string;
   organizacao?: string | null;
+  aoEditarPerfil: () => void;
+  aoAlterarSenha: () => void;
   aoSair: () => void;
   compacto: boolean;
 }) {
@@ -231,13 +270,44 @@ const MenuConta = memo(function MenuConta({
               <small translate="no">{email}</small>
             </span>
           </div>
-          <p className="conta-detalhe">
-            Perfil {rotulo}
-            {organizacao ? ` · ${organizacao}` : ''}. A sessão termina após 10&nbsp;minutos sem uso.
-          </p>
-          <button type="button" className="conta-sair" onClick={aoSair}>
-            Terminar sessão
-          </button>
+          <dl className="conta-meta">
+            <div>
+              <dt>Perfil</dt>
+              <dd>{rotulo}</dd>
+            </div>
+            {organizacao ? (
+              <div>
+                <dt>Organização</dt>
+                <dd>{organizacao}</dd>
+              </div>
+            ) : null}
+          </dl>
+          <p className="conta-sessao">Sessão expira após 10&nbsp;minutos sem uso.</p>
+          <div className="conta-accoes">
+            <button
+              type="button"
+              className="conta-accao"
+              onClick={() => {
+                setAberto(false);
+                aoEditarPerfil();
+              }}
+            >
+              Editar perfil
+            </button>
+            <button
+              type="button"
+              className="conta-accao"
+              onClick={() => {
+                setAberto(false);
+                aoAlterarSenha();
+              }}
+            >
+              Alterar senha
+            </button>
+            <button type="button" className="conta-sair" onClick={aoSair}>
+              Terminar sessão
+            </button>
+          </div>
         </div>
       ) : null}
     </div>
@@ -245,13 +315,14 @@ const MenuConta = memo(function MenuConta({
 });
 
 function menusDoPerfil(perfil: Sessao['perfil']) {
-  return perfil === 'AGRICULTOR' ? MENUS_AGRICULTOR : MENUS_TECNICO;
+  return MENUS_POR_PERFIL[perfil];
 }
 
 export function lerMenu(perfil: Sessao['perfil']): MenuId {
+  const menus = menusDoPerfil(perfil);
   const valor = new URLSearchParams(window.location.search).get('menu');
-  if (menusDoPerfil(perfil).some((item) => item.id === valor)) return valor as MenuId;
-  return 'painel';
+  if (menus.some((item) => item.id === valor)) return valor as MenuId;
+  return menus[0]?.id ?? 'painel';
 }
 
 export function urlDoMenu(id: MenuId): string {
@@ -272,6 +343,8 @@ interface BarraLateralProps {
   menu: MenuId;
   aoEscolher: (menu: MenuId) => void;
   aoPreverAcesso: () => void;
+  aoEditarPerfil: () => void;
+  aoAlterarSenha: () => void;
   aoSair: () => void;
 }
 
@@ -284,6 +357,8 @@ export const BarraLateral = memo(function BarraLateral({
   menu,
   aoEscolher,
   aoPreverAcesso,
+  aoEditarPerfil,
+  aoAlterarSenha,
   aoSair,
 }: BarraLateralProps) {
   const [recolhida, setRecolhida] = useState(lerBarraRecolhida);
@@ -387,6 +462,8 @@ export const BarraLateral = memo(function BarraLateral({
           email={email}
           nome={nome}
           organizacao={organizacao}
+          aoEditarPerfil={aoEditarPerfil}
+          aoAlterarSenha={aoAlterarSenha}
           aoSair={aoSair}
           compacto={compacta}
         />

@@ -1,18 +1,25 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { listarOcorrencias, type Ocorrencia } from './api';
 import { BarraLateral, lerMenu, urlDoMenu, type MenuId } from './barra-lateral';
 import { EcraLogin } from './ecra-login';
-import { limparSessao, lerSessao, type Sessao } from './sessao';
+import { FormularioPerfil } from './formulario-perfil';
+import { FormularioAlterarSenha } from './formulario-senha';
+import { podeConfigurar, podeGerirContas, podeRegistarOcorrencia, podeValidar, type Perfil } from './perfis';
+import { guardarSessao, limparSessao, lerSessao, type Sessao } from './sessao';
 import { useInactividade } from './use-inactividade';
+
+type DialogoConta = 'perfil' | 'senha' | null;
 
 const importarOcorrencia = () => import('./ecra-ocorrencia');
 const importarTecnico = () => import('./ecra-tecnico');
 const importarAcesso = () => import('./ecra-acesso');
+const importarConfig = () => import('./ecra-config');
 const importarTempo = () => import('./ecra-tempo');
 
 const EcraOcorrencia = lazy(() => importarOcorrencia().then((modulo) => ({ default: modulo.EcraOcorrencia })));
 const EcraTecnico = lazy(() => importarTecnico().then((modulo) => ({ default: modulo.EcraTecnico })));
 const EcraAcesso = lazy(() => importarAcesso().then((modulo) => ({ default: modulo.EcraAcesso })));
+const EcraConfig = lazy(() => importarConfig().then((modulo) => ({ default: modulo.EcraConfig })));
 const EcraTempo = lazy(() => importarTempo().then((modulo) => ({ default: modulo.EcraTempo })));
 
 const RESERVA = <p className="nota">A carregar…</p>;
@@ -43,9 +50,13 @@ const MARCA = (
   </div>
 );
 
-function preverEcra(perfil: Sessao['perfil']) {
-  if (perfil === 'AGRICULTOR') void importarOcorrencia();
-  else void importarTecnico();
+function preverEcra(perfil: Perfil) {
+  if (podeGerirContas(perfil)) void importarAcesso();
+  if (podeConfigurar(perfil)) void importarConfig();
+  if (podeValidar(perfil)) void importarTecnico();
+  if (podeRegistarOcorrencia(perfil) || perfil === 'VISUALIZADOR' || perfil === 'ADMIN_SISTEMA') {
+    void importarOcorrencia();
+  }
 }
 
 function preverAcesso() {
@@ -64,7 +75,10 @@ export function App() {
   const [sessao, setSessao] = useState<Sessao | null>(sessaoInicial);
   const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
   const [menu, setMenu] = useState<MenuId>(() => lerMenu(sessaoInicial()?.perfil ?? 'AGRICULTOR'));
+  const [dialogo, setDialogo] = useState<DialogoConta>(null);
   const autenticado = sessao !== null;
+  const dialogoRef = useRef<HTMLDivElement>(null);
+  const dialogoId = useId();
 
   const expirar = useCallback(() => {
     limparSessao();
@@ -72,6 +86,23 @@ export function App() {
   }, []);
 
   useInactividade(autenticado, expirar);
+
+  useEffect(() => {
+    if (!dialogo) return;
+    const anterior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const alvo =
+      dialogoRef.current?.querySelector<HTMLElement>('input:not([readonly])') ??
+      dialogoRef.current?.querySelector<HTMLElement>('button, input');
+    alvo?.focus();
+    const fechar = (evento: KeyboardEvent) => {
+      if (evento.key === 'Escape') setDialogo(null);
+    };
+    document.addEventListener('keydown', fechar);
+    return () => {
+      document.removeEventListener('keydown', fechar);
+      anterior?.focus();
+    };
+  }, [dialogo]);
 
   useEffect(() => {
     if (!sessao) return;
@@ -112,7 +143,11 @@ export function App() {
   }, []);
 
   const validar = useCallback((id: string) => {
-    setOcorrencias((atual) => atual.map((item) => (item.id === id ? { ...item, status: 'VALIDADA' } : item)));
+    setOcorrencias((atual) =>
+      atual.map((item) =>
+        item.id === id ? { ...item, status: 'VALIDADA', validadaEm: new Date().toISOString() } : item,
+      ),
+    );
   }, []);
 
   const escolherMenu = useCallback((proximo: MenuId) => {
@@ -141,21 +176,79 @@ export function App() {
         menu={menu}
         aoEscolher={escolherMenu}
         aoPreverAcesso={preverAcesso}
+        aoEditarPerfil={() => setDialogo('perfil')}
+        aoAlterarSenha={() => setDialogo('senha')}
         aoSair={sair}
       />
       <main id="conteudo" className="pagina">
         <Suspense fallback={RESERVA}>
           {menu === 'tempo' ? (
             <EcraTempo />
-          ) : sessao.perfil === 'AGRICULTOR' ? (
-            <EcraOcorrencia menu={menu} token={sessao.token} ocorrencias={ocorrencias} aoRegistar={registar} />
           ) : menu === 'acesso' ? (
             <EcraAcesso token={sessao.token} emailSessao={sessao.email} />
-          ) : (
+          ) : menu === 'config' ? (
+            <EcraConfig token={sessao.token} />
+          ) : menu === 'fila' ? (
             <EcraTecnico menu={menu} token={sessao.token} ocorrencias={ocorrencias} aoValidar={validar} />
+          ) : (
+            <EcraOcorrencia
+              menu={menu}
+              token={sessao.token}
+              ocorrencias={ocorrencias}
+              aoRegistar={registar}
+              podeCriar={podeRegistarOcorrencia(sessao.perfil)}
+            />
           )}
         </Suspense>
       </main>
+      {dialogo ? (
+        <div
+          className="conta-dialogo"
+          role="presentation"
+          onClick={(evento) => {
+            if (evento.target === evento.currentTarget) setDialogo(null);
+          }}
+        >
+          <div
+            ref={dialogoRef}
+            className="conta-dialogo-caixa"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={dialogoId}
+          >
+            {dialogo === 'perfil' ? (
+              <FormularioPerfil
+                token={sessao.token}
+                email={sessao.email}
+                perfil={sessao.perfil}
+                nomeInicial={sessao.nome}
+                organizacaoInicial={sessao.organizacao}
+                tituloId={dialogoId}
+                aoCancelar={() => setDialogo(null)}
+                aoSucesso={({ nome, organizacao }) => {
+                  const proxima: Sessao = { ...sessao, nome, organizacao };
+                  guardarSessao(proxima);
+                  setSessao(proxima);
+                  window.setTimeout(() => setDialogo(null), 900);
+                }}
+              />
+            ) : (
+              <FormularioAlterarSenha
+                emailInicial={sessao.email}
+                emailFixo
+                token={sessao.token}
+                titulo="Alterar senha"
+                tituloId={dialogoId}
+                variante="ficha"
+                aoCancelar={() => setDialogo(null)}
+                aoSucesso={() => {
+                  window.setTimeout(() => setDialogo(null), 1200);
+                }}
+              />
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

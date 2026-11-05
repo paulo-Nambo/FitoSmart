@@ -1,21 +1,19 @@
 import { memo, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { actualizarPerfil, criarUtilizador, listarUtilizadores, type Conta } from './api';
-
-const PERFIS = [
-  { id: 'AGRICULTOR', rotulo: 'Agricultor' },
-  { id: 'TECNICO', rotulo: 'Técnico' },
-] as const;
+import { PERFIS, ROTULO_PERFIL, type Perfil } from './perfis';
+import { RegrasSenha } from './regras-senha';
+import { mensagemSenhaNovaInvalida, senhaNovaValida, SENHA_MIN_NOVA } from './senha';
 
 function opcoesPerfil() {
-  return PERFIS.map((item) => (
-    <option key={item.id} value={item.id}>
-      {item.rotulo}
+  return PERFIS.map((id) => (
+    <option key={id} value={id}>
+      {ROTULO_PERFIL[id]}
     </option>
   ));
 }
 
 function rotuloPerfil(perfil: Conta['perfil']): string {
-  return PERFIS.find((item) => item.id === perfil)?.rotulo ?? perfil;
+  return ROTULO_PERFIL[perfil] ?? perfil;
 }
 
 function iniciais(nome: string, email: string): string {
@@ -119,7 +117,14 @@ const ListaContas = memo(function ListaContas({
   aoGuardar: (email: string, perfil: Conta['perfil']) => Promise<void>;
 }) {
   const total = contas.length;
-  const tecnicos = useMemo(() => contas.filter((item) => item.perfil === 'TECNICO').length, [contas]);
+  const resumoPerfis = useMemo(() => {
+    const contagem = Object.fromEntries(PERFIS.map((id) => [id, 0])) as Record<Perfil, number>;
+    for (const conta of contas) contagem[conta.perfil] += 1;
+    return PERFIS.filter((id) => contagem[id] > 0)
+      .map((id) => `${contagem[id]} ${ROTULO_PERFIL[id].toLowerCase()}${contagem[id] === 1 ? '' : 's'}`)
+      .slice(0, 3)
+      .join(' · ');
+  }, [contas]);
 
   return (
     <section className="cartao gestao-lista" aria-labelledby="gestao-contas-titulo">
@@ -129,9 +134,7 @@ const ListaContas = memo(function ListaContas({
             Contas
           </h2>
           <p className="nota lista-total">
-            {total === 0
-              ? 'Ainda não há contas'
-              : `${total} conta${total === 1 ? '' : 's'} · ${tecnicos} técnico${tecnicos === 1 ? '' : 's'}`}
+            {total === 0 ? 'Ainda não há contas' : `${total} conta${total === 1 ? '' : 's'}${resumoPerfis ? ` · ${resumoPerfis}` : ''}`}
           </p>
         </div>
       </header>
@@ -172,8 +175,8 @@ function FormularioConta({ aoCriar, token }: { token: string; aoCriar: (conta: C
       setErro('Indique um email válido, por exemplo nome@uem.mz.');
       return;
     }
-    if (senha.length < 6) {
-      setErro('A senha deve ter pelo menos 6 caracteres.');
+    if (!senhaNovaValida(senha)) {
+      setErro(mensagemSenhaNovaInvalida(senha));
       return;
     }
     setACriar(true);
@@ -259,7 +262,7 @@ function FormularioConta({ aoCriar, token }: { token: string; aoCriar: (conta: C
               required
             />
           </div>
-          <div className="form-campo">
+          <div className="form-campo gestao-campo-senha">
             <label htmlFor="conta-senha">Senha inicial</label>
             <input
               id="conta-senha"
@@ -267,12 +270,14 @@ function FormularioConta({ aoCriar, token }: { token: string; aoCriar: (conta: C
               type="password"
               autoComplete="new-password"
               spellCheck={false}
-              minLength={6}
-              placeholder="Mínimo 6 caracteres"
+              minLength={SENHA_MIN_NOVA}
+              placeholder="Ex.: FitoSmart1!"
               value={senha}
               onChange={(evento) => setSenha(evento.target.value)}
               required
+              aria-describedby="conta-senha-regras"
             />
+            <RegrasSenha id="conta-senha-regras" senha={senha} />
           </div>
           <div className="form-campo">
             <label htmlFor="conta-perfil">Perfil</label>

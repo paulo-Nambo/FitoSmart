@@ -22,7 +22,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS utilizadores (
   email text PRIMARY KEY,
   hash bytea NOT NULL,
-  perfil text NOT NULL CHECK (perfil IN ('AGRICULTOR', 'TECNICO')),
+  perfil text NOT NULL,
   nome text NOT NULL DEFAULT '',
   organizacao text
 );
@@ -82,6 +82,7 @@ ALTER TABLE utilizadores
   ADD COLUMN IF NOT EXISTS nome text NOT NULL DEFAULT '';
 ALTER TABLE utilizadores
   ADD COLUMN IF NOT EXISTS organizacao text;
+ALTER TABLE utilizadores DROP CONSTRAINT IF EXISTS utilizadores_perfil_check;
 
 CREATE INDEX IF NOT EXISTS idx_ocorrencias_status
   ON ocorrencias (status);
@@ -104,25 +105,22 @@ CREATE INDEX IF NOT EXISTS idx_parcelas_autor_nome
 CREATE INDEX IF NOT EXISTS idx_referencias_imagens_entrada
   ON referencias_imagens (entrada_id);
 
--- Contas de demonstração (senha: 123456, scrypt + sal "fitosmart-demo")
+-- Remover contas de demonstração antigas
+DELETE FROM utilizadores WHERE email IN (
+  'agricultor@uem.mz',
+  'tecnico@uem.mz',
+  'gestor@uem.mz',
+  'visualizador@uem.mz',
+  'admin.contas@uem.mz',
+  'admin.config@uem.mz'
+);
+
+-- Administrador do sistema (senha: FitoSmart1!, scrypt + sal "fitosmart-demo")
+-- Nota: o arranque da app não repõe o hash se a conta já existir.
 INSERT INTO utilizadores (email, hash, perfil, nome, organizacao) VALUES
-  (
-    'agricultor@uem.mz',
-    decode('0e145a348ad8cd29b54bea2b33f40336fd6622f947e0987d798e826a56579bc5', 'hex'),
-    'AGRICULTOR',
-    'Carlos Mandlate',
-    'Cooperativa de Maputo'
-  ),
-  (
-    'tecnico@uem.mz',
-    decode('0e145a348ad8cd29b54bea2b33f40336fd6622f947e0987d798e826a56579bc5', 'hex'),
-    'TECNICO',
-    'Ana Muchanga',
-    'UEM · Fitossanidade'
-  )
+  ('paulo.baltazar@uem.mz', decode('dfbb0ae949cba0870ec6c19c4409203367d1f69bf8fbb85d673522565f9dd0c4', 'hex'), 'ADMIN_SISTEMA', 'Paulo Baltazar', 'UEM · FitoSmart')
 ON CONFLICT (email) DO UPDATE SET
-  nome = CASE WHEN utilizadores.nome = '' THEN EXCLUDED.nome ELSE utilizadores.nome END,
-  organizacao = COALESCE(utilizadores.organizacao, EXCLUDED.organizacao);
+  perfil = EXCLUDED.perfil;
 
 -- Metadados do catálogo de referência (os JPEG vão para bytea via a API / npm run referencias + arranque)
 INSERT INTO referencias_entradas (id, cultura, rotulo, cientifico) VALUES

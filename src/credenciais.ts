@@ -1,5 +1,5 @@
 import { scryptSync, timingSafeEqual } from 'crypto';
-import type { Perfil } from './tipos';
+import type { Perfil } from './perfis';
 
 const SAL_DEMO = 'fitosmart-demo';
 
@@ -22,19 +22,31 @@ export function senhasIguais(senha: string, hash: Buffer): boolean {
 
 export const HASH_INEXISTENTE = hashSenha('senha-inexistente');
 
+/** Única conta de arranque: administrador do sistema. */
+export const CONTA_ADMIN_SISTEMA = {
+  email: 'paulo.baltazar@uem.mz',
+  senha: 'FitoSmart1!',
+  perfil: 'ADMIN_SISTEMA' as const,
+  nome: 'Paulo Baltazar',
+  organizacao: 'UEM · FitoSmart',
+};
+
 export const CONTAS_INICIAIS: Conta[] = [
   {
-    email: 'agricultor@uem.mz',
-    hash: hashSenha('123456'),
-    perfil: 'AGRICULTOR',
-    nome: 'Carlos Mandlate',
-    organizacao: 'Cooperativa de Maputo',
-  },
-  {
-    email: 'tecnico@uem.mz',
-    hash: hashSenha('123456'),
-    perfil: 'TECNICO',
-    nome: 'Ana Muchanga',
-    organizacao: 'UEM · Fitossanidade',
+    email: CONTA_ADMIN_SISTEMA.email,
+    hash: hashSenha(CONTA_ADMIN_SISTEMA.senha),
+    perfil: CONTA_ADMIN_SISTEMA.perfil,
+    nome: CONTA_ADMIN_SISTEMA.nome,
+    organizacao: CONTA_ADMIN_SISTEMA.organizacao,
   },
 ];
+
+/** Contas de demonstração antigas — removidas no arranque da base. */
+export const EMAILS_DEMO_REMOVER = [
+  'agricultor@uem.mz',
+  'tecnico@uem.mz',
+  'gestor@uem.mz',
+  'visualizador@uem.mz',
+  'admin.contas@uem.mz',
+  'admin.config@uem.mz',
+] as const;

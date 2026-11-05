@@ -1,5 +1,7 @@
+import type { Perfil } from './perfis';
 import type { Sessao } from './sessao';
 
+export type { Perfil };
 export type Severidade = 1 | 2 | 3 | 4 | 5;
 
 export interface Ocorrencia {
@@ -56,6 +58,31 @@ export function entrar(email: string, senha: string) {
     method: 'POST',
     body: JSON.stringify({ email, senha }),
   });
+}
+
+export function alterarSenha(
+  dados: { email: string; senhaActual: string; senhaNova: string },
+  token?: string,
+) {
+  return pedido<{ ok: true; mensagem: string }>(
+    '/api/conta/senha',
+    {
+      method: 'POST',
+      body: JSON.stringify(dados),
+    },
+    token,
+  );
+}
+
+export function actualizarConta(
+  dados: { nome: string; organizacao: string | null },
+  token: string,
+) {
+  return pedido<{
+    ok: true;
+    mensagem: string;
+    utilizador: { email: string; perfil: Perfil; nome: string; organizacao: string | null };
+  }>('/api/conta', { method: 'PATCH', body: JSON.stringify(dados) }, token);
 }
 
 const listasEmCurso = new Map<string, Promise<{ ocorrencias: Ocorrencia[] }>>();
@@ -115,7 +142,7 @@ export function registarOcorrencia(
 
 export interface Conta {
   email: string;
-  perfil: 'AGRICULTOR' | 'TECNICO';
+  perfil: Perfil;
   nome: string;
   organizacao: string | null;
 }
@@ -153,6 +180,17 @@ export function actualizarPerfil(token: string, email: string, perfil: Conta['pe
   return pedido<{ utilizador: Conta }>(`/api/utilizadores/${encodeURIComponent(email)}`, {
     method: 'PATCH',
     body: JSON.stringify({ perfil }),
+  }, token);
+}
+
+export function obterConfiguracao(token: string) {
+  return pedido<{ configuracao: { limiarTriagem: number } }>('/api/configuracao', {}, token);
+}
+
+export function actualizarConfiguracao(token: string, limiarTriagem: number) {
+  return pedido<{ configuracao: { limiarTriagem: number } }>('/api/configuracao', {
+    method: 'PATCH',
+    body: JSON.stringify({ limiarTriagem }),
   }, token);
 }
 

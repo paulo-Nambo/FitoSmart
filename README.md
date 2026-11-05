@@ -21,14 +21,16 @@ npm run dev
 
 A interface fica em `http://localhost:5173` e a API em `http://localhost:3001`.
 
-Contas de demonstração (senha `123456`):
+Conta de arranque (senha `FitoSmart1!`):
 
-- `agricultor@uem.mz` — regista ocorrências
-- `tecnico@uem.mz` — valida ocorrências encaminhadas
+- `paulo.baltazar@uem.mz` — Administrador do sistema (Paulo Baltazar)
+
+Novas senhas exigem: 8+ caracteres, letra, número e símbolo. Crie contas em **Gestão de acesso**; altere a senha no ecrã de acesso ou no menu da conta.
 
 ## Regras cobertas pelos 10 testes
 
-- Email sem `@` é inválido e senha com menos de 6 caracteres é rejeitada
+- Email sem `@` é inválido e senha de login com menos de 6 caracteres é rejeitada
+- Novas senhas exigem 8+ caracteres com letra, número e símbolo
 - Login válido devolve um JWT assinado
 - Latitude fora de `[-90, 90]` falha; longitude `-180` é aceite
 - Ocorrência sem sintomas responde `400`

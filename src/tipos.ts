@@ -1,4 +1,5 @@
-export type Perfil = 'AGRICULTOR' | 'TECNICO';
+export type { Perfil } from './perfis';
+import type { Perfil } from './perfis';
 
 export interface ContaPublica {
   email: string;

@@ -1,9 +1,13 @@
+import { ePerfil, type Perfil } from './perfis';
+
 const CHAVE = 'fitosmart.sessao.v1';
+
+export type { Perfil };
 
 export interface Sessao {
   token: string;
   email: string;
-  perfil: 'AGRICULTOR' | 'TECNICO';
+  perfil: Perfil;
   nome?: string;
   organizacao?: string | null;
 }
@@ -15,11 +19,7 @@ export function lerSessao(): Sessao | null {
     const valor: unknown = JSON.parse(bruto);
     if (!valor || typeof valor !== 'object') return null;
     const candidato = valor as Partial<Sessao>;
-    if (
-      typeof candidato.token !== 'string' ||
-      typeof candidato.email !== 'string' ||
-      (candidato.perfil !== 'AGRICULTOR' && candidato.perfil !== 'TECNICO')
-    ) {
+    if (typeof candidato.token !== 'string' || typeof candidato.email !== 'string' || !ePerfil(candidato.perfil)) {
       return null;
     }
     return {

@@ -7,6 +7,8 @@ export interface Conta {
   email: string;
   hash: Buffer;
   perfil: Perfil;
+  nome: string;
+  organizacao: string | null;
 }
 
 export function hashSenha(senha: string): Buffer {
@@ -21,6 +23,18 @@ export function senhasIguais(senha: string, hash: Buffer): boolean {
 export const HASH_INEXISTENTE = hashSenha('senha-inexistente');
 
 export const CONTAS_INICIAIS: Conta[] = [
-  { email: 'agricultor@uem.mz', hash: hashSenha('123456'), perfil: 'AGRICULTOR' },
-  { email: 'tecnico@uem.mz', hash: hashSenha('123456'), perfil: 'TECNICO' },
+  {
+    email: 'agricultor@uem.mz',
+    hash: hashSenha('123456'),
+    perfil: 'AGRICULTOR',
+    nome: 'Carlos Mandlate',
+    organizacao: 'Cooperativa de Maputo',
+  },
+  {
+    email: 'tecnico@uem.mz',
+    hash: hashSenha('123456'),
+    perfil: 'TECNICO',
+    nome: 'Ana Muchanga',
+    organizacao: 'UEM · Fitossanidade',
+  },
 ];

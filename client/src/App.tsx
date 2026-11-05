@@ -136,6 +136,8 @@ export function App() {
         marca={MARCA}
         perfil={sessao.perfil}
         email={sessao.email}
+        nome={sessao.nome}
+        organizacao={sessao.organizacao}
         menu={menu}
         aoEscolher={escolherMenu}
         aoPreverAcesso={preverAcesso}

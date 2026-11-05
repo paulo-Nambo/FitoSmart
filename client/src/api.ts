@@ -1,5 +1,7 @@
 import type { Sessao } from './sessao';
 
+export type Severidade = 1 | 2 | 3 | 4 | 5;
+
 export interface Ocorrencia {
   id: string;
   cultura: string;
@@ -11,6 +13,12 @@ export interface Ocorrencia {
   autorEmail: string | null;
   criadaEm: string;
   imagens: string[];
+  parcelaId: string | null;
+  parcelaNome: string | null;
+  referenciaId: string | null;
+  referenciaRotulo: string | null;
+  severidade: Severidade | null;
+  validadaEm: string | null;
 }
 
 export class ErroApi extends Error {
@@ -89,7 +97,15 @@ export function listarOcorrencias(token: string) {
 
 export function registarOcorrencia(
   token: string,
-  corpo: { cultura: string; sintomas: string[]; latitude: number; longitude: number },
+  corpo: {
+    cultura: string;
+    sintomas: string[];
+    latitude: number;
+    longitude: number;
+    parcelaNome?: string | null;
+    referenciaId?: string | null;
+    severidade?: Severidade | null;
+  },
 ) {
   return pedido<{ ocorrencia: Ocorrencia; mensagem?: string }>('/api/ocorrencias', {
     method: 'POST',
@@ -100,6 +116,8 @@ export function registarOcorrencia(
 export interface Conta {
   email: string;
   perfil: 'AGRICULTOR' | 'TECNICO';
+  nome: string;
+  organizacao: string | null;
 }
 
 const contasEmCurso = new Map<string, Promise<{ utilizadores: Conta[] }>>();
@@ -115,7 +133,16 @@ export function listarUtilizadores(token: string) {
   return consulta;
 }
 
-export function criarUtilizador(token: string, corpo: { email: string; senha: string; perfil: Conta['perfil'] }) {
+export function criarUtilizador(
+  token: string,
+  corpo: {
+    email: string;
+    senha: string;
+    perfil: Conta['perfil'];
+    nome: string;
+    organizacao?: string | null;
+  },
+) {
   return pedido<{ utilizador: Conta }>('/api/utilizadores', {
     method: 'POST',
     body: JSON.stringify(corpo),
@@ -139,6 +166,7 @@ export interface Diagnostico {
   motor: 'openepi' | 'ollama' | 'gemini' | 'fitosmart';
   resumo: string;
   imagensReferencia: string[];
+  referenciaId: string | null;
 }
 
 export async function diagnosticarImagem(token: string, blob: Blob, cultura: string) {

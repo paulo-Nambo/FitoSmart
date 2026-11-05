@@ -83,7 +83,7 @@ export async function loginHandler(req: Request, res: Response): Promise<void> {
   }
 
   const token = jwt.sign(
-    { email: utilizador.email, perfil: utilizador.perfil },
+    { email: utilizador.email, perfil: utilizador.perfil, nome: utilizador.nome },
     segredoJwt(),
     { algorithm: ALGORITMO, expiresIn: '8h', subject: utilizador.email },
   );
@@ -92,5 +92,7 @@ export async function loginHandler(req: Request, res: Response): Promise<void> {
     token,
     email: utilizador.email,
     perfil: utilizador.perfil,
+    nome: utilizador.nome,
+    organizacao: utilizador.organizacao,
   });
 }

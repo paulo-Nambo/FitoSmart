@@ -48,29 +48,30 @@ function pontuarEntrada(entrada: EntradaReferencia, consulta: string, cultura?: 
   return pontos;
 }
 
-/** Resolve imagens de referência locais (PlantVillage/Commons via catálogo). */
-export function imagensReferenciaPara(opcoes: {
+export interface OpcoesReferencia {
   praga?: string | null;
   nomeCientifico?: string | null;
   cultura?: string | null;
   codigoOpenEpi?: string | null;
   limite?: number;
-}): string[] {
-  const limite = opcoes.limite ?? 4;
+}
+
+/** Resolve a entrada canónica do catálogo (id estável para estatística e fila). */
+export function resolverEntradaReferencia(opcoes: OpcoesReferencia): EntradaReferencia | null {
   if (opcoes.codigoOpenEpi) {
     const id = OPENEPI_PARA_ID[opcoes.codigoOpenEpi];
     const directa = ENTRADAS.find((item) => item.id === id);
-    if (directa?.imagens.length) return directa.imagens.slice(0, limite);
+    if (directa?.imagens.length) return directa;
   }
 
   const praga = (opcoes.praga ?? '').trim();
   // Sem nome de praga concreto não há correspondência fiável com a fotografia.
   if (!praga || /^sintomas detectados|padrao pouco claro|diagnostico indeterminado/i.test(normalizar(praga))) {
-    return [];
+    return null;
   }
 
   const consulta = normalizar([praga, opcoes.nomeCientifico].filter(Boolean).join(' '));
-  if (!consulta) return [];
+  if (!consulta) return null;
 
   const ordenadas = ENTRADAS.map((entrada) => ({
     entrada,
@@ -79,7 +80,21 @@ export function imagensReferenciaPara(opcoes: {
     .filter((item) => item.pontos >= 8)
     .sort((a, b) => b.pontos - a.pontos);
 
-  return ordenadas[0]?.entrada.imagens.slice(0, limite) ?? [];
+  return ordenadas[0]?.entrada ?? null;
+}
+
+/** Resolve imagens de referência locais (PlantVillage/Commons via catálogo). */
+export function imagensReferenciaPara(opcoes: OpcoesReferencia): string[] {
+  const limite = opcoes.limite ?? 4;
+  return resolverEntradaReferencia(opcoes)?.imagens.slice(0, limite) ?? [];
+}
+
+export function existeReferencia(id: string): boolean {
+  return ENTRADAS.some((item) => item.id === id);
+}
+
+export function rotuloReferencia(id: string): string | null {
+  return ENTRADAS.find((item) => item.id === id)?.rotulo ?? null;
 }
 
 export function listarBibliotecaReferencias(): EntradaReferencia[] {

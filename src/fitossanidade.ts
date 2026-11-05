@@ -6,11 +6,19 @@ import {
   listarOcorrencias,
   marcarValidada,
   obterOcorrencia,
+  obterOuCriarParcela,
   reporEstado as reporBase,
   ultimaEncaminhada,
 } from './base';
+import { existeReferencia, rotuloReferencia } from './biblioteca-referencias';
 import { reporImagens } from './imagens';
-import type { CamposOcorrencia, EstadoOcorrencia, Ocorrencia, ResultadoTriagem } from './tipos';
+import type {
+  CamposOcorrencia,
+  EstadoOcorrencia,
+  Ocorrencia,
+  ResultadoTriagem,
+  Severidade,
+} from './tipos';
 
 export function reporEstado(): void {
   reporBase();
@@ -72,6 +80,31 @@ function lerSintomas(valor: unknown): string[] | null {
   return sintomas;
 }
 
+function lerSeveridade(valor: unknown): Severidade | null | undefined {
+  if (valor === undefined || valor === null || valor === '') return null;
+  const numero = typeof valor === 'number' ? valor : Number(valor);
+  if (!Number.isInteger(numero) || numero < 1 || numero > 5) return undefined;
+  return numero as Severidade;
+}
+
+function lerNomeParcela(valor: unknown): string | null | undefined {
+  if (valor === undefined || valor === null || valor === '') return null;
+  if (typeof valor !== 'string') return undefined;
+  const nome = valor.trim();
+  if (nome.length === 0) return null;
+  if (nome.length > 80) return undefined;
+  return nome;
+}
+
+function lerReferenciaId(valor: unknown): string | null | undefined {
+  if (valor === undefined || valor === null || valor === '') return null;
+  if (typeof valor !== 'string') return undefined;
+  const id = valor.trim();
+  if (!id) return null;
+  if (!existeReferencia(id)) return undefined;
+  return id;
+}
+
 export async function registrarOcorrenciaHandler(req: Request, res: Response): Promise<void> {
   const sintomas = lerSintomas(req.body?.sintomas);
   if (!sintomas || sintomas.length === 0) {
@@ -97,8 +130,45 @@ export async function registrarOcorrenciaHandler(req: Request, res: Response): P
     return;
   }
 
+  const parcelaNome = lerNomeParcela(req.body?.parcelaNome);
+  if (parcelaNome === undefined) {
+    res.status(400).json({ erro: 'Nome da parcela inválido (máx. 80 caracteres)' });
+    return;
+  }
+
+  const severidade = lerSeveridade(req.body?.severidade);
+  if (severidade === undefined) {
+    res.status(400).json({ erro: 'Severidade inválida (use 1 a 5)' });
+    return;
+  }
+
+  const referenciaId = lerReferenciaId(req.body?.referenciaId);
+  if (referenciaId === undefined) {
+    res.status(400).json({ erro: 'Referência de praga/doença inválida' });
+    return;
+  }
+
   const triagem = calcularTriagem(sintomas, [...FICHA_BASE]);
   const identidade = identificarPedido(req);
+
+  let parcelaId: string | null = null;
+  let parcelaNomeGuardado: string | null = null;
+  if (parcelaNome) {
+    try {
+      const parcela = await obterOuCriarParcela({
+        nome: parcelaNome,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        autorEmail: identidade?.email ?? null,
+      });
+      parcelaId = parcela.id;
+      parcelaNomeGuardado = parcela.nome;
+    } catch {
+      res.status(500).json({ erro: 'Erro interno' });
+      return;
+    }
+  }
+
   const ocorrencia: Ocorrencia = {
     id: randomUUID(),
     cultura,
@@ -110,6 +180,12 @@ export async function registrarOcorrenciaHandler(req: Request, res: Response): P
     autorEmail: identidade?.email ?? null,
     criadaEm: new Date().toISOString(),
     imagens: [],
+    parcelaId,
+    parcelaNome: parcelaNomeGuardado,
+    referenciaId,
+    referenciaRotulo: referenciaId ? rotuloReferencia(referenciaId) : null,
+    severidade,
+    validadaEm: null,
   };
   try {
     await criarOcorrencia(ocorrencia);
@@ -180,7 +256,7 @@ export async function validarTecnicoHandler(req: Request, res: Response): Promis
       res.status(500).json({ erro: 'Erro interno' });
       return;
     }
-    alvo = { ...alvo, status: 'VALIDADA' };
+    alvo = { ...alvo, status: 'VALIDADA', validadaEm: new Date().toISOString() };
   }
 
   res.status(200).json({

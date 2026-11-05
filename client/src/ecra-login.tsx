@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { entrar } from './api';
 import {
-  carregarPrevisaoHojeMaputo,
+  carregarPrevisaoSemanaMaputo,
+  LOCAL_PREVISAO,
   PREVISAO_RESERVA,
   type DiaPrevisao,
 } from './previsao-tempo';
@@ -9,6 +10,13 @@ import { guardarSessao, type Sessao } from './sessao';
 import { MINUTOS_INACTIVIDADE } from './use-inactividade';
 
 const ANO = new Date().getFullYear();
+
+function faixaStyle(minima: number, maxima: number): CSSProperties {
+  return {
+    '--min': `${Math.max(0, Math.min(100, ((minima + 5) / 45) * 100))}%`,
+    '--max': `${Math.max(0, Math.min(100, ((maxima + 5) / 45) * 100))}%`,
+  } as CSSProperties;
+}
 
 const CONTAS_DEMO = [
   { email: 'agricultor@uem.mz', senha: '123456', rotulo: 'Agricultor', perfil: 'AGRICULTOR' },
@@ -254,56 +262,69 @@ function FormularioLogin({ aoEntrar, aoPrever }: EcraLoginProps) {
 }
 
 function Destaques() {
-  const [previsao, setPrevisao] = useState<DiaPrevisao | null>(null);
-  const aCarregar = previsao === null;
-  const destaque = previsao ?? PREVISAO_RESERVA;
+  const [dias, setDias] = useState<DiaPrevisao[] | null>(null);
+  const aCarregar = dias === null;
+  const lista = dias ?? [];
+  const hoje = lista.find((dia) => dia.eHoje) ?? lista[0];
 
   useEffect(() => {
     const controlo = new AbortController();
-    carregarPrevisaoHojeMaputo(controlo.signal)
-      .then(setPrevisao)
+    carregarPrevisaoSemanaMaputo(controlo.signal)
+      .then(setDias)
       .catch(() => {
-        if (!controlo.signal.aborted) setPrevisao(PREVISAO_RESERVA);
+        if (!controlo.signal.aborted) setDias([PREVISAO_RESERVA]);
       });
     return () => controlo.abort();
   }, []);
 
   return (
-    <div className="destaques" role="region" aria-label="Previsão do tempo de hoje em Maputo" aria-busy={aCarregar}>
+    <div
+      className="destaques"
+      role="region"
+      aria-label={`Previsão semanal do tempo em ${LOCAL_PREVISAO}`}
+      aria-busy={aCarregar}
+    >
       <div className="destaques-topo">
-        <p>Previsão de hoje</p>
+        <p>Previsão semanal</p>
       </div>
       <div className="destaque-cartao">
         <div
           className="destaque-painel destaque-tempo"
-          aria-label={`${destaque.kind}: ${destaque.title}`}
+          aria-label={hoje ? `Semana em ${LOCAL_PREVISAO}. Hoje: ${hoje.title}` : `Semana em ${LOCAL_PREVISAO}`}
         >
-          <span className="destaque-tipo">{aCarregar ? 'A carregar…' : destaque.kind}</span>
-          {destaque.temperatura !== null ? (
+          <span className="destaque-tipo">{aCarregar ? 'A carregar…' : `${LOCAL_PREVISAO} · 7 dias`}</span>
+          {hoje?.temperatura !== null && hoje?.temperatura !== undefined ? (
             <p className="destaque-temp" aria-hidden="true">
-              {Math.round(destaque.temperatura)}
+              {Math.round(hoje.temperatura)}
               <span>°C</span>
             </p>
           ) : null}
-          <p className="destaque-titulo">{destaque.title}</p>
-          <p>{destaque.description}</p>
-          {destaque.maxima !== null && destaque.minima !== null ? (
-            <div className="destaque-faixa" aria-hidden="true">
-              <span>Mín {Math.round(destaque.minima)}°</span>
-              <span className="destaque-faixa-barra">
-                <i
-                  style={
-                    {
-                      '--min': `${Math.max(0, Math.min(100, ((destaque.minima + 5) / 45) * 100))}%`,
-                      '--max': `${Math.max(0, Math.min(100, ((destaque.maxima + 5) / 45) * 100))}%`,
-                    } as CSSProperties
-                  }
-                />
-              </span>
-              <span>Máx {Math.round(destaque.maxima)}°</span>
-            </div>
-          ) : null}
-          <p className="destaque-meta">{destaque.meta}</p>
+          {hoje ? <p className="destaque-titulo">{hoje.title}</p> : null}
+          <ul className="destaque-semana">
+            {lista.map((dia) => (
+              <li key={dia.id} className={dia.eHoje ? 'destaque-semana-dia e-hoje' : 'destaque-semana-dia'}>
+                <span className="destaque-semana-nome">{dia.kind}</span>
+                <span className="destaque-semana-condicao">{dia.title}</span>
+                {dia.minima !== null && dia.maxima !== null ? (
+                  <span
+                    className="destaque-semana-faixa"
+                    aria-label={`Mínima ${Math.round(dia.minima)} graus, máxima ${Math.round(dia.maxima)} graus`}
+                  >
+                    <span>{Math.round(dia.minima)}°</span>
+                    <span className="destaque-faixa-barra" aria-hidden="true">
+                      <i style={faixaStyle(dia.minima, dia.maxima)} />
+                    </span>
+                    <span>{Math.round(dia.maxima)}°</span>
+                  </span>
+                ) : (
+                  <span className="destaque-semana-faixa destaque-semana-faixa-vazia">—</span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="destaque-meta">
+            {LOCAL_PREVISAO} · Open-Meteo
+          </p>
         </div>
       </div>
     </div>

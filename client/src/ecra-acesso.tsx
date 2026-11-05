@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState, type FormEvent } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { actualizarPerfil, criarUtilizador, listarUtilizadores, type Conta } from './api';
 
 const PERFIS = [
@@ -6,16 +6,23 @@ const PERFIS = [
   { id: 'TECNICO', rotulo: 'Técnico' },
 ] as const;
 
-const NOTA = (
-  <p className="nota">Só o perfil Técnico cria contas e muda o perfil de outra pessoa. A sua sessão não muda aqui.</p>
-);
-
 function opcoesPerfil() {
   return PERFIS.map((item) => (
     <option key={item.id} value={item.id}>
       {item.rotulo}
     </option>
   ));
+}
+
+function rotuloPerfil(perfil: Conta['perfil']): string {
+  return PERFIS.find((item) => item.id === perfil)?.rotulo ?? perfil;
+}
+
+function iniciais(nome: string, email: string): string {
+  const texto = nome.trim() || email.split('@')[0] || '?';
+  const partes = texto.split(/\s+/).filter(Boolean);
+  if (partes.length >= 2) return `${partes[0]![0] ?? ''}${partes[1]![0] ?? ''}`.toUpperCase();
+  return texto.slice(0, 2).toUpperCase();
 }
 
 const LinhaConta = memo(function LinhaConta({
@@ -47,31 +54,54 @@ const LinhaConta = memo(function LinhaConta({
   }
 
   return (
-    <li className="conta-linha">
-      <div>
-        <strong translate="no">{conta.email}</strong>
-        {propria ? <p className="nota">Esta é a sua sessão.</p> : null}
+    <li className={propria ? 'gestao-linha gestao-linha-propria' : 'gestao-linha'}>
+      <span className="gestao-avatar" aria-hidden="true">
+        {iniciais(conta.nome, conta.email)}
+      </span>
+      <div className="gestao-identidade">
+        <strong className="quebrar">{conta.nome || 'Sem nome'}</strong>
+        <p className="nota gestao-meta">
+          <span translate="no">{conta.email}</span>
+          {conta.organizacao ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              <span>{conta.organizacao}</span>
+            </>
+          ) : null}
+        </p>
+        {propria ? <p className="nota">A sua sessão</p> : null}
       </div>
-      <label className="conta-perfil" htmlFor={`perfil-${conta.email}`}>
-        Perfil
-        <select
-          id={`perfil-${conta.email}`}
-          name="perfil"
-          autoComplete="off"
-          value={escolha}
-          disabled={propria || aGuardar}
-          onChange={(evento) => setEscolha(evento.target.value as Conta['perfil'])}
-        >
-          {opcoesPerfil()}
-        </select>
-      </label>
-      {propria ? null : (
-        <button type="button" className="secundario" disabled={!alterado || aGuardar} aria-busy={aGuardar} onClick={guardar}>
-          {aGuardar ? 'A guardar…' : 'Guardar perfil'}
-        </button>
+      <span className={`gestao-selo gestao-selo-${conta.perfil.toLowerCase()}`}>{rotuloPerfil(conta.perfil)}</span>
+      {propria ? (
+        <p className="nota gestao-bloqueio">Perfil da sessão activa — não se altera aqui.</p>
+      ) : (
+        <div className="gestao-accao">
+          <label className="sr-only" htmlFor={`perfil-${conta.email}`}>
+            Perfil de {conta.nome}
+          </label>
+          <select
+            id={`perfil-${conta.email}`}
+            name="perfil"
+            autoComplete="off"
+            value={escolha}
+            disabled={aGuardar}
+            onChange={(evento) => setEscolha(evento.target.value as Conta['perfil'])}
+          >
+            {opcoesPerfil()}
+          </select>
+          <button
+            type="button"
+            className="secundario"
+            disabled={!alterado || aGuardar}
+            aria-busy={aGuardar}
+            onClick={guardar}
+          >
+            {aGuardar ? 'A guardar…' : 'Guardar'}
+          </button>
+        </div>
       )}
       {erro ? (
-        <p className="alerta" role="alert">
+        <p className="alerta gestao-erro" role="alert">
           {erro}
         </p>
       ) : null}
@@ -88,13 +118,27 @@ const ListaContas = memo(function ListaContas({
   emailSessao: string;
   aoGuardar: (email: string, perfil: Conta['perfil']) => Promise<void>;
 }) {
+  const total = contas.length;
+  const tecnicos = useMemo(() => contas.filter((item) => item.perfil === 'TECNICO').length, [contas]);
+
   return (
-    <section className="cartao lista">
-      <h2 className="titulo">Contas</h2>
+    <section className="cartao gestao-lista" aria-labelledby="gestao-contas-titulo">
+      <header className="lista-cabeca">
+        <div>
+          <h2 id="gestao-contas-titulo" className="titulo">
+            Contas
+          </h2>
+          <p className="nota lista-total">
+            {total === 0
+              ? 'Ainda não há contas'
+              : `${total} conta${total === 1 ? '' : 's'} · ${tecnicos} técnico${tecnicos === 1 ? '' : 's'}`}
+          </p>
+        </div>
+      </header>
       {contas.length === 0 ? (
-        <p className="nota">Ainda não há contas.</p>
+        <p className="lista-vazia">Crie a primeira conta no formulário ao lado.</p>
       ) : (
-        <ul className="contas-lista">
+        <ul className="gestao-contas">
           {contas.map((conta) => (
             <LinhaConta key={conta.email} conta={conta} propria={conta.email === emailSessao} aoGuardar={aoGuardar} />
           ))}
@@ -105,16 +149,25 @@ const ListaContas = memo(function ListaContas({
 });
 
 function FormularioConta({ aoCriar, token }: { token: string; aoCriar: (conta: Conta) => void }) {
+  const [nome, setNome] = useState('');
+  const [organizacao, setOrganizacao] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [perfil, setPerfil] = useState<Conta['perfil']>('AGRICULTOR');
   const [erro, setErro] = useState<string | null>(null);
+  const [sucesso, setSucesso] = useState<string | null>(null);
   const [aCriar, setACriar] = useState(false);
 
   async function submeter(evento: FormEvent) {
     evento.preventDefault();
     setErro(null);
+    setSucesso(null);
+    const titular = nome.trim().replace(/\s+/g, ' ');
     const endereco = email.trim().toLowerCase();
+    if (titular.length < 2) {
+      setErro('Indique o nome da pessoa a quem a conta pertence.');
+      return;
+    }
     if (!endereco.includes('@') || !endereco.split('@')[1]?.includes('.')) {
       setErro('Indique um email válido, por exemplo nome@uem.mz.');
       return;
@@ -125,11 +178,20 @@ function FormularioConta({ aoCriar, token }: { token: string; aoCriar: (conta: C
     }
     setACriar(true);
     try {
-      const resposta = await criarUtilizador(token, { email: endereco, senha, perfil });
+      const resposta = await criarUtilizador(token, {
+        email: endereco,
+        senha,
+        perfil,
+        nome: titular,
+        organizacao: organizacao.trim() || null,
+      });
       aoCriar(resposta.utilizador);
+      setNome('');
+      setOrganizacao('');
       setEmail('');
       setSenha('');
       setPerfil('AGRICULTOR');
+      setSucesso(`Conta de ${resposta.utilizador.nome} criada.`);
     } catch (falha) {
       setErro(falha instanceof Error ? falha.message : 'Não foi possível criar a conta. Tente novamente.');
     } finally {
@@ -138,65 +200,137 @@ function FormularioConta({ aoCriar, token }: { token: string; aoCriar: (conta: C
   }
 
   return (
-    <form className="cartao" onSubmit={submeter}>
-      <h2 className="titulo">Nova conta</h2>
-      <label htmlFor="conta-email">Email</label>
-      <input
-        id="conta-email"
-        name="email"
-        type="email"
-        inputMode="email"
-        autoComplete="off"
-        spellCheck={false}
-        placeholder="nome@uem.mz…"
-        value={email}
-        onChange={(evento) => setEmail(evento.target.value)}
-      />
-      <label htmlFor="conta-senha">Senha</label>
-      <input
-        id="conta-senha"
-        name="new-password"
-        type="password"
-        autoComplete="new-password"
-        spellCheck={false}
-        value={senha}
-        onChange={(evento) => setSenha(evento.target.value)}
-      />
-      <label htmlFor="conta-perfil">Perfil</label>
-      <select
-        id="conta-perfil"
-        name="perfil"
-        autoComplete="off"
-        value={perfil}
-        onChange={(evento) => setPerfil(evento.target.value as Conta['perfil'])}
-      >
-        {opcoesPerfil()}
-      </select>
+    <form className="cartao gestao-formulario" onSubmit={submeter} autoComplete="off">
+      <header className="form-cabeca">
+        <h2 className="titulo">Nova conta</h2>
+        <p className="nota">Quem é o titular, como entra no sistema e com que perfil.</p>
+      </header>
+
+      <fieldset className="gestao-bloco">
+        <legend>Titular</legend>
+        <div className="gestao-campos gestao-campos-2">
+          <div className="form-campo">
+            <label htmlFor="conta-nome">Nome</label>
+            <input
+              id="conta-nome"
+              name="nome"
+              type="text"
+              autoComplete="name"
+              maxLength={80}
+              placeholder="Carlos Mandlate"
+              value={nome}
+              onChange={(evento) => setNome(evento.target.value)}
+              required
+            />
+          </div>
+          <div className="form-campo">
+            <label htmlFor="conta-organizacao">
+              Organização <span className="form-opcional">opcional</span>
+            </label>
+            <input
+              id="conta-organizacao"
+              name="organizacao"
+              type="text"
+              autoComplete="organization"
+              maxLength={80}
+              placeholder="Cooperativa de Maputo"
+              value={organizacao}
+              onChange={(evento) => setOrganizacao(evento.target.value)}
+            />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset className="gestao-bloco">
+        <legend>Credenciais</legend>
+        <div className="gestao-campos gestao-campos-3">
+          <div className="form-campo">
+            <label htmlFor="conta-email">Email</label>
+            <input
+              id="conta-email"
+              name="email"
+              type="email"
+              inputMode="email"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="nome@uem.mz"
+              value={email}
+              onChange={(evento) => setEmail(evento.target.value)}
+              required
+            />
+          </div>
+          <div className="form-campo">
+            <label htmlFor="conta-senha">Senha inicial</label>
+            <input
+              id="conta-senha"
+              name="new-password"
+              type="password"
+              autoComplete="new-password"
+              spellCheck={false}
+              minLength={6}
+              placeholder="Mínimo 6 caracteres"
+              value={senha}
+              onChange={(evento) => setSenha(evento.target.value)}
+              required
+            />
+          </div>
+          <div className="form-campo">
+            <label htmlFor="conta-perfil">Perfil</label>
+            <select
+              id="conta-perfil"
+              name="perfil"
+              autoComplete="off"
+              value={perfil}
+              onChange={(evento) => setPerfil(evento.target.value as Conta['perfil'])}
+            >
+              {opcoesPerfil()}
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
       {erro ? (
         <p className="alerta" role="alert">
           {erro}
         </p>
       ) : null}
-      <button type="submit" className="primario enviar" disabled={aCriar} aria-busy={aCriar}>
-        {aCriar ? 'A criar…' : 'Criar conta'}
-      </button>
+      {sucesso ? (
+        <p className="sucesso" role="status" aria-live="polite">
+          {sucesso}
+        </p>
+      ) : null}
+      <div className="gestao-form-rodape">
+        <button type="submit" className="primario enviar" disabled={aCriar} aria-busy={aCriar}>
+          {aCriar ? 'A criar…' : 'Criar conta'}
+        </button>
+      </div>
     </form>
   );
 }
 
+type SeparadorAcesso = 'nova' | 'contas';
+
 export function EcraAcesso({ token, emailSessao }: { token: string; emailSessao: string }) {
   const [contas, setContas] = useState<Conta[]>([]);
   const [erro, setErro] = useState<string | null>(null);
+  const [aCarregar, setACarregar] = useState(true);
+  const [separador, setSeparador] = useState<SeparadorAcesso>('nova');
 
   useEffect(() => {
     let ativo = true;
+    setACarregar(true);
     listarUtilizadores(token)
       .then((dados) => {
-        if (ativo) setContas(dados.utilizadores);
+        if (!ativo) return;
+        setContas(dados.utilizadores);
+        setErro(null);
       })
       .catch((falha: unknown) => {
         if (!ativo) return;
         setErro(falha instanceof Error ? falha.message : 'Não foi possível carregar as contas.');
+      })
+      .finally(() => {
+        if (ativo) setACarregar(false);
       });
     return () => {
       ativo = false;
@@ -215,26 +349,80 @@ export function EcraAcesso({ token, emailSessao }: { token: string; emailSessao:
     setContas((atual) => {
       if (atual.some((item) => item.email === conta.email)) return atual;
       const seguinte = [...atual, conta];
-      seguinte.sort((a, b) => a.email.localeCompare(b.email));
+      seguinte.sort((a, b) => a.nome.localeCompare(b.nome, 'pt') || a.email.localeCompare(b.email));
       return seguinte;
     });
+    setSeparador('contas');
   }, []);
 
   return (
-    <>
-      <h1 className="titulo">Gestão de Acesso</h1>
-      {NOTA}
+    <section className="gestao-acesso" aria-busy={aCarregar}>
+      <header className="lista-cabeca">
+        <div>
+          <h1 className="titulo">Gestão de acesso</h1>
+          <p className="nota">
+            Cada conta tem um titular e, se fizer sentido, a organização. Só técnicos criam contas e mudam perfis.
+          </p>
+        </div>
+      </header>
+
+      <div className="gestao-tabs" role="tablist" aria-label="Secções de gestão de acesso">
+        <button
+          type="button"
+          role="tab"
+          id="tab-nova-conta"
+          className={separador === 'nova' ? 'gestao-tab activa' : 'gestao-tab'}
+          aria-selected={separador === 'nova'}
+          aria-controls="painel-nova-conta"
+          tabIndex={separador === 'nova' ? 0 : -1}
+          onClick={() => setSeparador('nova')}
+        >
+          Nova conta
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-lista-contas"
+          className={separador === 'contas' ? 'gestao-tab activa' : 'gestao-tab'}
+          aria-selected={separador === 'contas'}
+          aria-controls="painel-lista-contas"
+          tabIndex={separador === 'contas' ? 0 : -1}
+          onClick={() => setSeparador('contas')}
+        >
+          Contas
+          <span className="gestao-tab-conta numero">{contas.length}</span>
+        </button>
+      </div>
+
       {erro ? (
         <p className="alerta" role="alert">
           {erro}
         </p>
-      ) : (
-        <div className="grelha">
+      ) : null}
+
+      {aCarregar && contas.length === 0 && !erro ? <p className="nota">A carregar contas…</p> : null}
+
+      {!erro && separador === 'nova' ? (
+        <div
+          id="painel-nova-conta"
+          role="tabpanel"
+          aria-labelledby="tab-nova-conta"
+          className="gestao-painel"
+        >
           <FormularioConta token={token} aoCriar={criar} />
+        </div>
+      ) : null}
+
+      {!erro && separador === 'contas' ? (
+        <div
+          id="painel-lista-contas"
+          role="tabpanel"
+          aria-labelledby="tab-lista-contas"
+          className="gestao-painel"
+        >
           <ListaContas contas={contas} emailSessao={emailSessao} aoGuardar={guardar} />
         </div>
-      )}
-    </>
+      ) : null}
+    </section>
   );
 }
-

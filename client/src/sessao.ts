@@ -4,6 +4,8 @@ export interface Sessao {
   token: string;
   email: string;
   perfil: 'AGRICULTOR' | 'TECNICO';
+  nome?: string;
+  organizacao?: string | null;
 }
 
 export function lerSessao(): Sessao | null {
@@ -20,7 +22,18 @@ export function lerSessao(): Sessao | null {
     ) {
       return null;
     }
-    return { token: candidato.token, email: candidato.email, perfil: candidato.perfil };
+    return {
+      token: candidato.token,
+      email: candidato.email,
+      perfil: candidato.perfil,
+      nome: typeof candidato.nome === 'string' ? candidato.nome : undefined,
+      organizacao:
+        candidato.organizacao === null
+          ? null
+          : typeof candidato.organizacao === 'string'
+            ? candidato.organizacao
+            : undefined,
+    };
   } catch {
     return null;
   }

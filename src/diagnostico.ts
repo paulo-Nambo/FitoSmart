@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import jpeg from 'jpeg-js';
 import { identificarPedido } from './auth';
-import { imagensReferenciaPara } from './biblioteca-referencias';
+import { resolverEntradaReferencia, type OpcoesReferencia } from './biblioteca-referencias';
 
 const SINTOMAS_VALIDOS = new Set(['manchas_amarelas', 'folhas_secas', 'murcha', 'pragas_visiveis']);
 const CULTURAS = new Set(['Milho', 'Mandioca', 'Feijão', 'Tomate']);
@@ -16,6 +16,16 @@ export interface Diagnostico {
   motor: 'openepi' | 'ollama' | 'gemini' | 'fitosmart';
   resumo: string;
   imagensReferencia: string[];
+  referenciaId: string | null;
+}
+
+function anexarReferencia(opcoes: OpcoesReferencia): Pick<Diagnostico, 'imagensReferencia' | 'referenciaId'> {
+  const entrada = resolverEntradaReferencia(opcoes);
+  const limite = opcoes.limite ?? 4;
+  return {
+    imagensReferencia: entrada?.imagens.slice(0, limite) ?? [],
+    referenciaId: entrada?.id ?? null,
+  };
 }
 
 interface SinaisVisuais {
@@ -175,6 +185,7 @@ export function diagnosticarLocal(buffer: Buffer, culturaPreferida?: string): Di
       motor: 'fitosmart',
       resumo: 'A fotografia não mostrou um padrão claro para diagnóstico.',
       imagensReferencia: [],
+      referenciaId: null,
     };
   }
 
@@ -200,7 +211,7 @@ export function diagnosticarLocal(buffer: Buffer, culturaPreferida?: string): Di
     resumo: hipotese
       ? `Hipótese local por sintomas${cultura ? ` em ${cultura}` : ''}: ${hipotese.praga}.`
       : `Estimativa local: ${lista.length} sintoma(s)${cultura ? ` em ${cultura}` : ''}.`,
-    imagensReferencia: imagensReferenciaPara({
+    ...anexarReferencia({
       praga: hipotese ? hipotese.praga.replace(/\s*\(hipótese\)\s*/i, '').trim() : null,
       nomeCientifico,
       cultura,
@@ -496,7 +507,7 @@ function interpretarRespostaIa(
     recomendacao,
     motor,
     resumo,
-    imagensReferencia: imagensReferenciaPara({
+    ...anexarReferencia({
       praga: praga.replace(/\s*\(hipótese\)\s*/i, '').trim(),
       nomeCientifico,
       cultura: culturaDetectada,
@@ -740,13 +751,6 @@ async function diagnosticarOpenEpi(buffer: Buffer): Promise<Diagnostico | null> 
   if (meta.saudavel && probabilidade < 0.55) return null;
 
   const confianca = Math.max(35, Math.min(96, Math.round(probabilidade * 100)));
-  const imagensReferencia = imagensReferenciaPara({
-    codigoOpenEpi: codigo,
-    praga: meta.praga,
-    nomeCientifico: meta.nomeCientifico,
-    cultura: meta.cultura,
-    limite: 4,
-  });
   return {
     praga: meta.praga,
     nomeCientifico: meta.nomeCientifico,
@@ -756,7 +760,13 @@ async function diagnosticarOpenEpi(buffer: Buffer): Promise<Diagnostico | null> 
     recomendacao: meta.recomendacao,
     motor: 'openepi',
     resumo: `OpenEPI: ${meta.praga} com ${confianca}\u00a0% de confiança${meta.cultura ? ` em ${meta.cultura}` : ''}.`,
-    imagensReferencia,
+    ...anexarReferencia({
+      codigoOpenEpi: codigo,
+      praga: meta.praga,
+      nomeCientifico: meta.nomeCientifico,
+      cultura: meta.cultura,
+      limite: 4,
+    }),
   };
 }
 

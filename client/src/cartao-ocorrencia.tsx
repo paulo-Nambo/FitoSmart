@@ -8,6 +8,19 @@ const ROTULOS_SINTOMA: Record<string, string> = {
   pragas_visiveis: 'Pragas visíveis',
 };
 
+const ROTULOS_SEVERIDADE: Record<number, string> = {
+  1: 'Muito baixa',
+  2: 'Baixa',
+  3: 'Moderada',
+  4: 'Alta',
+  5: 'Crítica',
+};
+
+export function rotuloSeveridade(valor: number | null | undefined): string {
+  if (valor === null || valor === undefined) return '—';
+  return ROTULOS_SEVERIDADE[valor] ?? String(valor);
+}
+
 const COORDENADA = new Intl.NumberFormat('pt', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const DATA = new Intl.DateTimeFormat('pt', { dateStyle: 'medium', timeStyle: 'short' });
 const PERCENTAGEM = new Intl.NumberFormat('pt');
@@ -188,10 +201,39 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
               </dd>
             </div>
           ) : null}
+          {ocorrencia.validadaEm ? (
+            <div>
+              <dt>Validada</dt>
+              <dd>
+                <time dateTime={ocorrencia.validadaEm}>{formatarData(ocorrencia.validadaEm)}</time>
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt>Confiança</dt>
             <dd className="numero">{PERCENTAGEM.format(ocorrencia.confianca)}&nbsp;%</dd>
           </div>
+          {ocorrencia.severidade !== null && ocorrencia.severidade !== undefined ? (
+            <div>
+              <dt>Severidade</dt>
+              <dd>
+                {rotuloSeveridade(ocorrencia.severidade)}
+                <span className="item-severidade-grau"> · {ocorrencia.severidade}/5</span>
+              </dd>
+            </div>
+          ) : null}
+          {ocorrencia.parcelaNome ? (
+            <div>
+              <dt>Parcela</dt>
+              <dd className="quebrar">{ocorrencia.parcelaNome}</dd>
+            </div>
+          ) : null}
+          {ocorrencia.referenciaRotulo ? (
+            <div>
+              <dt>Referência</dt>
+              <dd className="quebrar">{ocorrencia.referenciaRotulo}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>Local</dt>
             <dd>

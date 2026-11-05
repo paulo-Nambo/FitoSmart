@@ -134,14 +134,26 @@ function lerBarraRecolhida(): boolean {
   }
 }
 
+function iniciaisNome(nome: string | undefined, perfil: Sessao['perfil']): string {
+  const texto = (nome ?? '').trim();
+  if (!texto) return INICIAIS_PERFIL[perfil];
+  const partes = texto.split(/\s+/).filter(Boolean);
+  if (partes.length >= 2) return `${partes[0]![0] ?? ''}${partes[1]![0] ?? ''}`.toUpperCase();
+  return texto.slice(0, 2).toUpperCase();
+}
+
 const MenuConta = memo(function MenuConta({
   perfil,
   email,
+  nome,
+  organizacao,
   aoSair,
   compacto,
 }: {
   perfil: Sessao['perfil'];
   email: string;
+  nome?: string;
+  organizacao?: string | null;
   aoSair: () => void;
   compacto: boolean;
 }) {
@@ -151,7 +163,8 @@ const MenuConta = memo(function MenuConta({
   const painel = useRef<HTMLDivElement>(null);
   const tituloId = useId();
   const rotulo = ROTULO_PERFIL[perfil];
-  const iniciais = INICIAIS_PERFIL[perfil];
+  const titular = (nome ?? '').trim() || rotulo;
+  const iniciais = iniciaisNome(nome, perfil);
 
   useEffect(() => {
     if (!aberto) return;
@@ -180,8 +193,8 @@ const MenuConta = memo(function MenuConta({
         ref={gatilho}
         type="button"
         className={compacto ? 'conta-gatilho conta-gatilho-compacto' : 'conta-gatilho'}
-        aria-label={`Menu da conta: ${rotulo}`}
-        title={compacto ? `${rotulo} · ${email}` : undefined}
+        aria-label={`Menu da conta: ${titular}`}
+        title={compacto ? `${titular} · ${email}` : undefined}
         aria-haspopup="dialog"
         aria-expanded={aberto}
         aria-controls={aberto ? tituloId : undefined}
@@ -193,7 +206,7 @@ const MenuConta = memo(function MenuConta({
         {compacto ? null : (
           <>
             <span className="conta-texto">
-              <strong>{rotulo}</strong>
+              <strong>{titular}</strong>
               <small translate="no">{email}</small>
             </span>
             {SETA_CONTA}
@@ -207,18 +220,21 @@ const MenuConta = memo(function MenuConta({
           className="conta-painel"
           role="dialog"
           aria-modal="true"
-          aria-label={`Conta de ${rotulo}`}
+          aria-label={`Conta de ${titular}`}
         >
           <div className="conta-cabeca">
             <span className="conta-avatar conta-avatar-grande" aria-hidden="true">
               {iniciais}
             </span>
             <span className="conta-texto">
-              <strong>{rotulo}</strong>
+              <strong>{titular}</strong>
               <small translate="no">{email}</small>
             </span>
           </div>
-          <p className="conta-detalhe">Perfil {rotulo}. A sessão termina após 10&nbsp;minutos sem uso.</p>
+          <p className="conta-detalhe">
+            Perfil {rotulo}
+            {organizacao ? ` · ${organizacao}` : ''}. A sessão termina após 10&nbsp;minutos sem uso.
+          </p>
           <button type="button" className="conta-sair" onClick={aoSair}>
             Terminar sessão
           </button>
@@ -251,6 +267,8 @@ interface BarraLateralProps {
   marca: ReactNode;
   perfil: Sessao['perfil'];
   email: string;
+  nome?: string;
+  organizacao?: string | null;
   menu: MenuId;
   aoEscolher: (menu: MenuId) => void;
   aoPreverAcesso: () => void;
@@ -261,6 +279,8 @@ export const BarraLateral = memo(function BarraLateral({
   marca,
   perfil,
   email,
+  nome,
+  organizacao,
   menu,
   aoEscolher,
   aoPreverAcesso,
@@ -362,7 +382,14 @@ export const BarraLateral = memo(function BarraLateral({
         ) : null}
       </nav>
       <footer className="barra-utilizador">
-        <MenuConta perfil={perfil} email={email} aoSair={aoSair} compacto={compacta} />
+        <MenuConta
+          perfil={perfil}
+          email={email}
+          nome={nome}
+          organizacao={organizacao}
+          aoSair={aoSair}
+          compacto={compacta}
+        />
       </footer>
     </aside>
   );

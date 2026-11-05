@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useRef, useState, type FormEvent, type Ref } from 'react';
-import { enviarImagem, registarOcorrencia, type Diagnostico, type Ocorrencia } from './api';
+import { enviarImagem, registarOcorrencia, type Diagnostico, type Ocorrencia, type Severidade } from './api';
 import { CampoImagens, type CampoImagensHandle } from './campo-imagens';
-import { CartaoOcorrencia, rotuloSintoma } from './cartao-ocorrencia';
+import { CartaoOcorrencia, rotuloSeveridade, rotuloSintoma } from './cartao-ocorrencia';
 import type { MenuId } from './barra-lateral';
 import {
   BarraFiltro,
@@ -28,6 +28,8 @@ const SINTOMAS = [
   { id: 'murcha', rotulo: 'Murcha' },
   { id: 'pragas_visiveis', rotulo: 'Pragas visíveis' },
 ] as const;
+
+const SEVERIDADES: Severidade[] = [1, 2, 3, 4, 5];
 
 const OPCOES_CULTURA = CULTURAS.map((item) => (
   <option key={item} value={item}>
@@ -329,6 +331,8 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
   activo: boolean;
 }) {
   const [cultura, setCultura] = useState<(typeof CULTURAS)[number]>('Milho');
+  const [parcelaNome, setParcelaNome] = useState('');
+  const [severidade, setSeveridade] = useState<Severidade>(3);
   const [sintomas, setSintomas] = useState(() => new Set<string>());
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
   const [sintomasManuais, setSintomasManuais] = useState(false);
@@ -375,13 +379,20 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
 
   useEffect(() => {
     const avisar = (evento: BeforeUnloadEvent) => {
-      if (sintomas.size === 0 && !localRef.current?.sujo() && !imagensRef.current?.sujo()) return;
+      if (
+        sintomas.size === 0 &&
+        !parcelaNome.trim() &&
+        !localRef.current?.sujo() &&
+        !imagensRef.current?.sujo()
+      ) {
+        return;
+      }
       evento.preventDefault();
       evento.returnValue = '';
     };
     window.addEventListener('beforeunload', avisar);
     return () => window.removeEventListener('beforeunload', avisar);
-  }, [sintomas]);
+  }, [parcelaNome, sintomas]);
 
   const alternarSintoma = useCallback((id: string) => {
     limparErro('sintomas');
@@ -438,6 +449,9 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
         sintomas: [...sintomas],
         latitude: lat,
         longitude: lng,
+        parcelaNome: parcelaNome.trim() || null,
+        referenciaId: diagnostico?.referenciaId ?? null,
+        severidade,
       });
       let ocorrencia = resposta.ocorrencia;
       const fotos = imagensRef.current?.ler() ?? [];
@@ -458,6 +472,8 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
       setSintomas(new Set());
       setDiagnostico(null);
       setSintomasManuais(false);
+      setParcelaNome('');
+      setSeveridade(3);
       localRef.current?.marcarLimpo();
       imagensRef.current?.limpar();
     } catch (falha) {
@@ -469,18 +485,58 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
   }
 
   return (
-    <form className="cartao" onSubmit={submeter} autoComplete="off" noValidate>
-      <h1 className="titulo">Nova ocorrência</h1>
-      <label htmlFor="cultura">Cultura</label>
-      <select
-        id="cultura"
-        name="cultura"
-        autoComplete="off"
-        value={cultura}
-        onChange={(evento) => setCultura(evento.target.value as (typeof CULTURAS)[number])}
-      >
-        {OPCOES_CULTURA}
-      </select>
+    <form className="cartao form-ocorrencia" onSubmit={submeter} autoComplete="off" noValidate>
+      <header className="form-cabeca">
+        <h1 className="titulo">Nova ocorrência</h1>
+        <p className="nota">Indique cultura, parcela e severidade; depois fotografe a planta.</p>
+      </header>
+
+      <div className="form-grelha">
+        <div className="form-campo">
+          <label htmlFor="cultura">Cultura</label>
+          <select
+            id="cultura"
+            name="cultura"
+            autoComplete="off"
+            value={cultura}
+            onChange={(evento) => setCultura(evento.target.value as (typeof CULTURAS)[number])}
+          >
+            {OPCOES_CULTURA}
+          </select>
+        </div>
+        <div className="form-campo">
+          <label htmlFor="parcela">
+            Parcela <span className="form-opcional">opcional</span>
+          </label>
+          <input
+            id="parcela"
+            name="parcela"
+            type="text"
+            maxLength={80}
+            autoComplete="off"
+            placeholder="Talhão Norte · Maputo"
+            value={parcelaNome}
+            onChange={(evento) => setParcelaNome(evento.target.value)}
+          />
+        </div>
+        <div className="form-campo">
+          <label htmlFor="severidade">Severidade</label>
+          <select
+            id="severidade"
+            name="severidade"
+            autoComplete="off"
+            value={severidade}
+            onChange={(evento) => setSeveridade(Number(evento.target.value) as Severidade)}
+          >
+            {SEVERIDADES.map((grau) => (
+              <option key={grau} value={grau}>
+                {grau} · {rotuloSeveridade(grau)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <CampoImagens
         ref={imagensRef}
         token={token}
@@ -565,6 +621,7 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
           <PrevisaoTriagem sintomas={sintomas} />
         </fieldset>
       ) : null}
+
       <CamposLocal
         ref={localRef}
         activo={activo}

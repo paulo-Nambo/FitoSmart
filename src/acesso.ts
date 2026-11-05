@@ -22,6 +22,22 @@ function lerPerfil(valor: unknown): Perfil | null {
   return null;
 }
 
+function lerNome(valor: unknown): string | null {
+  if (typeof valor !== 'string') return null;
+  const nome = valor.trim().replace(/\s+/g, ' ');
+  if (nome.length < 2 || nome.length > 80) return null;
+  return nome;
+}
+
+function lerOrganizacao(valor: unknown): string | null | undefined {
+  if (valor === undefined || valor === null || valor === '') return null;
+  if (typeof valor !== 'string') return undefined;
+  const texto = valor.trim().replace(/\s+/g, ' ');
+  if (texto.length === 0) return null;
+  if (texto.length > 80) return undefined;
+  return texto;
+}
+
 export async function listarUtilizadoresHandler(req: Request, res: Response): Promise<void> {
   if (!exigirTecnico(req, res)) return;
   try {
@@ -38,6 +54,8 @@ export async function criarUtilizadorHandler(req: Request, res: Response): Promi
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const senha = typeof req.body?.senha === 'string' ? req.body.senha : '';
   const perfil = lerPerfil(req.body?.perfil);
+  const nome = lerNome(req.body?.nome);
+  const organizacao = lerOrganizacao(req.body?.organizacao);
 
   if (!emailValido(email)) {
     res.status(400).json({ erro: 'Indique um email válido, por exemplo nome@uem.mz.' });
@@ -51,9 +69,17 @@ export async function criarUtilizadorHandler(req: Request, res: Response): Promi
     res.status(400).json({ erro: 'Escolha o perfil Agricultor ou Técnico.' });
     return;
   }
+  if (!nome) {
+    res.status(400).json({ erro: 'Indique o nome da pessoa a quem a conta pertence (2 a 80 caracteres).' });
+    return;
+  }
+  if (organizacao === undefined) {
+    res.status(400).json({ erro: 'Organização inválida (máx. 80 caracteres).' });
+    return;
+  }
 
   try {
-    await criarUtilizador({ email, hash: hashSenha(senha), perfil });
+    await criarUtilizador({ email, hash: hashSenha(senha), perfil, nome, organizacao });
   } catch (erro) {
     if (erro instanceof ContaDuplicada) {
       res.status(409).json({ erro: 'Já existe uma conta com este email. Use outro endereço.' });
@@ -63,7 +89,7 @@ export async function criarUtilizadorHandler(req: Request, res: Response): Promi
     return;
   }
 
-  res.status(201).json({ utilizador: { email, perfil } });
+  res.status(201).json({ utilizador: { email, perfil, nome, organizacao } });
 }
 
 export async function actualizarPerfilHandler(req: Request, res: Response): Promise<void> {
@@ -106,5 +132,7 @@ export async function actualizarPerfilHandler(req: Request, res: Response): Prom
     return;
   }
 
-  res.json({ utilizador: { email, perfil } });
+  const contas = await listarUtilizadores();
+  const utilizador = contas.find((item) => item.email === email) ?? { email, perfil, nome: email, organizacao: null };
+  res.json({ utilizador });
 }

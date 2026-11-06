@@ -38,13 +38,13 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
     });
   });
 
-  test('Nova senha fraca é rejeitada pela política reforçada', () => {
+  test('T11 [Campo]: Nova senha fraca é rejeitada pela política reforçada', () => {
     expect(senhaNovaValida('123456')).toBe(false);
     expect(senhaNovaValida('abcdefg1')).toBe(false);
     expect(senhaNovaValida('FitoSmart1!')).toBe(true);
   });
 
-  test('Editar perfil actualiza titular da conta autenticada', async () => {
+  test('T12 [Integração]: Editar perfil actualiza titular da conta autenticada', async () => {
     const login = await request(app)
       .post('/api/login')
       .send({ email: CONTA_ADMIN_SISTEMA.email, senha: CONTA_ADMIN_SISTEMA.senha });
@@ -65,7 +65,7 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
     });
   });
 
-  test('Alterar senha exige senha actual e aceita nova senha válida', async () => {
+  test('T13 [Integração]: Alterar senha exige senha actual e aceita nova senha válida', async () => {
     const email = CONTA_ADMIN_SISTEMA.email;
     const actual = CONTA_ADMIN_SISTEMA.senha;
     const proxima = 'OutraSenha2!';
@@ -161,9 +161,25 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
   });
 
   test('T10 [Integração]: Técnico autorizado altera status da ocorrência para VALIDADA', async () => {
-    const res = await request(app).post('/api/validacoes').set('x-user-role', 'TECNICO');
+    const registo = await request(app)
+      .post('/api/ocorrencias')
+      .set('x-user-role', 'AGRICULTOR')
+      .send({
+        cultura: 'Milho',
+        sintomas: ['manchas_amarelas'],
+        latitude: -25.7,
+        longitude: 32.6,
+      });
+    expect(registo.status).toBe(201);
+    expect(registo.body.status).toBe('ENCAMINHADA');
+
+    const res = await request(app)
+      .post('/api/validacoes')
+      .set('x-user-role', 'TECNICO')
+      .send({ id: registo.body.ocorrencia.id });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('VALIDADA');
+    expect(res.body.ocorrencia?.status).toBe('VALIDADA');
   });
 });

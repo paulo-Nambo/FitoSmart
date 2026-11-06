@@ -162,10 +162,11 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
   const mapa = ligaMapa(ocorrencia.latitude, ocorrencia.longitude);
   const local = `${COORDENADA.format(ocorrencia.latitude)}, ${COORDENADA.format(ocorrencia.longitude)}`;
   const fila = variante === 'fila';
+  const comVisual = fotos.length > 0 || !fila;
   const classes = [
     'item',
     `estado-${ocorrencia.status.toLowerCase()}`,
-    fotos.length > 0 ? 'item-com-foto' : '',
+    comVisual ? 'item-com-foto' : '',
     fila ? 'item-fila' : '',
   ]
     .filter(Boolean)
@@ -173,12 +174,23 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
 
   return (
     <article className={classes}>
-      {fotos.length > 0 ? <GaleriaFotos token={token} id={ocorrencia.id} nomes={fotos} /> : null}
+      {fotos.length > 0 ? (
+        <GaleriaFotos token={token} id={ocorrencia.id} nomes={fotos} />
+      ) : !fila ? (
+        <div className="item-placeholder" aria-hidden="true">
+          <span>{ocorrencia.cultura.slice(0, 2).toLocaleUpperCase('pt')}</span>
+        </div>
+      ) : null}
       <div className="item-corpo">
-        <header>
-          <strong className="quebrar" translate="no">
-            {ocorrencia.cultura}
-          </strong>
+        <header className="item-cabeca">
+          <div className="item-titulo">
+            <strong className="quebrar" translate="no">
+              {ocorrencia.cultura}
+            </strong>
+            {ocorrencia.parcelaNome ? (
+              <span className="item-parcela quebrar">{ocorrencia.parcelaNome}</span>
+            ) : null}
+          </div>
           <span className="selo">{ROTULO_ESTADO[ocorrencia.status]}</span>
         </header>
         {ocorrencia.sintomas.length > 0 ? (
@@ -222,12 +234,6 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
               </dd>
             </div>
           ) : null}
-          {ocorrencia.parcelaNome ? (
-            <div>
-              <dt>Parcela</dt>
-              <dd className="quebrar">{ocorrencia.parcelaNome}</dd>
-            </div>
-          ) : null}
           {ocorrencia.referenciaRotulo ? (
             <div>
               <dt>Referência</dt>
@@ -257,17 +263,19 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
             </div>
           ) : null}
         </dl>
-        <div
-          className="progresso"
-          role="meter"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={ocorrencia.confianca}
-          aria-label={`Confiança da triagem: ${PERCENTAGEM.format(ocorrencia.confianca)} por cento`}
-        >
-          <span style={{ width: `${ocorrencia.confianca}%` }} />
+        <div className="item-confianca">
+          <div
+            className="progresso"
+            role="meter"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={ocorrencia.confianca}
+            aria-label={`Confiança da triagem: ${PERCENTAGEM.format(ocorrencia.confianca)} por cento`}
+          >
+            <span style={{ width: `${ocorrencia.confianca}%` }} />
+          </div>
         </div>
-        {fila ? null : <p className="nota">{RECOMENDACAO[ocorrencia.status]}</p>}
+        {fila ? null : <p className="item-dica">{RECOMENDACAO[ocorrencia.status]}</p>}
         {acao ? <div className="item-rodape">{acao}</div> : null}
       </div>
     </article>

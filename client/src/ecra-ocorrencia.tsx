@@ -57,18 +57,31 @@ const ListaOcorrencias = memo(function ListaOcorrencias({
   const contagens = contarEstados(ocorrencias);
 
   return (
-    <section className="cartao lista">
+    <section className="lista-ecra" aria-labelledby="ocorrencias-titulo">
       <header className="lista-cabeca">
-        <h1 className="titulo">Ocorrências</h1>
-        <p className="nota lista-total">{rotuloLista(visiveis.length, ocorrencias.length, filtro)}</p>
+        <div className="lista-cabeca-texto">
+          <h1 id="ocorrencias-titulo" className="titulo">
+            Ocorrências
+          </h1>
+          <p className="nota lista-total">{rotuloLista(visiveis.length, ocorrencias.length, filtro)}</p>
+        </div>
       </header>
-      <BarraFiltro filtro={filtro} aoEscolher={escolher} contagens={contagens} />
+      <div className="lista-ferramentas">
+        <BarraFiltro filtro={filtro} aoEscolher={escolher} contagens={contagens} />
+      </div>
       {visiveis.length === 0 ? (
-        <p className="lista-vazia">{mensagemVazia(filtro)}</p>
+        <div className="lista-vazia-caixa">
+          <p>{mensagemVazia(filtro)}</p>
+          {filtro !== 'todas' ? (
+            <button type="button" className="secundario" onClick={() => escolher('todas')}>
+              Ver todas
+            </button>
+          ) : null}
+        </div>
       ) : (
-        <ul>
+        <ul className="lista-ocorrencias">
           {visiveis.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} className="lista-linha">
               <CartaoOcorrencia token={token} ocorrencia={item} />
             </li>
           ))}
@@ -345,6 +358,7 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
   const [sintomas, setSintomas] = useState(() => new Set<string>());
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
   const [sintomasManuais, setSintomasManuais] = useState(false);
+  const [aAnalisarFoto, setAAnalisarFoto] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [campoErro, setCampoErro] = useState<'sintomas' | 'latitude' | 'longitude' | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -423,11 +437,26 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
     [limparErro],
   );
 
+  const aoAnalisarFoto = useCallback((activo: boolean) => {
+    setAAnalisarFoto(activo);
+    if (activo) {
+      setErro(null);
+      setCampoErro(null);
+      setSintomasManuais(false);
+      setDiagnostico(null);
+    }
+  }, []);
+
   async function submeter(evento: FormEvent) {
     evento.preventDefault();
     setErro(null);
     setCampoErro(null);
     setAviso(null);
+
+    if (aAnalisarFoto) {
+      setErro('Aguarde o fim da análise da fotografia antes de submeter.');
+      return;
+    }
 
     const local = localRef.current?.ler() ?? { latitude: LAT_INICIAL, longitude: LNG_INICIAL };
     const lat = Number(local.latitude);
@@ -497,77 +526,94 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
     <form className="cartao form-ocorrencia" onSubmit={submeter} autoComplete="off" noValidate>
       <header className="form-cabeca">
         <h1 className="titulo">Nova ocorrência</h1>
-        <p className="nota">Indique cultura, parcela e severidade; depois fotografe a planta.</p>
+        <p className="nota">Cultura e severidade, fotografia da planta e, se precisar, sintomas manuais.</p>
       </header>
 
-      <div className="form-grelha">
-        <div className="form-campo">
-          <label htmlFor="cultura">Cultura</label>
-          <select
-            id="cultura"
-            name="cultura"
-            autoComplete="off"
-            value={cultura}
-            onChange={(evento) => setCultura(evento.target.value as (typeof CULTURAS)[number])}
-          >
-            {OPCOES_CULTURA}
-          </select>
+      <fieldset className="form-bloco">
+        <legend>Identificação</legend>
+        <div className="form-grelha form-grelha-2">
+          <div className="form-campo">
+            <label htmlFor="cultura">Cultura</label>
+            <select
+              id="cultura"
+              name="cultura"
+              autoComplete="off"
+              value={cultura}
+              onChange={(evento) => setCultura(evento.target.value as (typeof CULTURAS)[number])}
+            >
+              {OPCOES_CULTURA}
+            </select>
+          </div>
+          <div className="form-campo">
+            <label htmlFor="parcela">
+              Parcela <span className="form-opcional">opcional</span>
+            </label>
+            <input
+              id="parcela"
+              name="parcela"
+              type="text"
+              maxLength={80}
+              autoComplete="off"
+              placeholder="Talhão Norte · Maputo"
+              value={parcelaNome}
+              onChange={(evento) => setParcelaNome(evento.target.value)}
+            />
+          </div>
         </div>
-        <div className="form-campo">
-          <label htmlFor="parcela">
-            Parcela <span className="form-opcional">opcional</span>
-          </label>
-          <input
-            id="parcela"
-            name="parcela"
-            type="text"
-            maxLength={80}
-            autoComplete="off"
-            placeholder="Talhão Norte · Maputo"
-            value={parcelaNome}
-            onChange={(evento) => setParcelaNome(evento.target.value)}
-          />
-        </div>
-        <div className="form-campo">
-          <label htmlFor="severidade">Severidade</label>
-          <select
-            id="severidade"
-            name="severidade"
-            autoComplete="off"
-            value={severidade}
-            onChange={(evento) => setSeveridade(Number(evento.target.value) as Severidade)}
-          >
+        <div className="form-campo form-campo-severidade">
+          <span id="severidade-rotulo" className="form-rotulo">
+            Severidade
+          </span>
+          <div className="severidade-escala" role="radiogroup" aria-labelledby="severidade-rotulo">
             {SEVERIDADES.map((grau) => (
-              <option key={grau} value={grau}>
-                {grau} · {rotuloSeveridade(grau)}
-              </option>
+              <label key={grau} className={severidade === grau ? 'severidade-opcao severidade-opcao-activa' : 'severidade-opcao'}>
+                <input
+                  type="radio"
+                  name="severidade"
+                  value={grau}
+                  checked={severidade === grau}
+                  onChange={() => setSeveridade(grau)}
+                />
+                <strong>{grau}</strong>
+                <small>{rotuloSeveridade(grau)}</small>
+              </label>
             ))}
-          </select>
+          </div>
         </div>
-      </div>
+      </fieldset>
 
       <CampoImagens
         ref={imagensRef}
         token={token}
         cultura={cultura}
         aoDetectar={aplicarDeteccao}
+        aoAnalisar={aoAnalisarFoto}
         aoErro={reportarErro}
       />
-      {diagnostico && diagnostico.confianca > 0 && !sintomasManuais ? (
+      {aAnalisarFoto ? (
+        <p className="nota form-analise" role="status" aria-live="polite">
+          A analisar a fotografia… os sintomas aparecem automaticamente quando terminar.
+        </p>
+      ) : null}
+      {diagnostico && diagnostico.confianca > 0 && !sintomasManuais && !aAnalisarFoto ? (
         <div className="sintomas-foto" aria-live="polite">
-          <div className={`diagnostico${diagnostico.motor === 'fitosmart' ? ' diagnostico-local' : ''}`}>
+          <div
+            className={`diagnostico${diagnostico.motor === 'fitosmart' ? ' diagnostico-local' : ''}${
+              diagnostico.hipotese || diagnostico.confianca < 60 ? ' diagnostico-hipotese' : ''
+            }`}
+          >
             <p className="sintomas-foto-rotulo">
-              {diagnostico.motor === 'fitosmart'
-                ? 'Hipótese local (a IA de visão não respondeu)'
-                : 'Diagnóstico inteligente'}
+              {diagnostico.hipotese || diagnostico.confianca < 60
+                ? 'Hipótese — por confirmar no talhão'
+                : diagnostico.motor === 'fitosmart'
+                  ? 'Hipótese local (a IA de visão não respondeu)'
+                  : 'Diagnóstico inteligente'}
             </p>
             <p className="diagnostico-praga">
               {diagnostico.praga}
-              {diagnostico.motor !== 'fitosmart' ? (
-                <span className="diagnostico-confianca">
-                  {`${PERCENTAGEM.format(diagnostico.confianca)}\u00a0%`}
-                </span>
-              ) : null}
+              <span className="diagnostico-confianca">
+                {`${PERCENTAGEM.format(diagnostico.confianca)}\u00a0%`}
+              </span>
             </p>
             {diagnostico.nomeCientifico ? (
               <p className="diagnostico-ciencia" translate="no">
@@ -583,6 +629,16 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
               <p className="diagnostico-ciencia">{diagnostico.resumo}</p>
             ) : null}
             <p className="diagnostico-acao">{diagnostico.recomendacao}</p>
+            {diagnostico.alternativas.length > 0 ? (
+              <div className="diagnostico-alternativas">
+                <p className="diagnostico-refs-rotulo">Outras causas possíveis</p>
+                <ul>
+                  {diagnostico.alternativas.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {diagnostico.imagensReferencia?.length ? (
               <div className="diagnostico-refs">
                 <p className="diagnostico-refs-rotulo">Imagens de referência</p>
@@ -596,7 +652,7 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
                   ))}
                 </ul>
                 <p className="diagnostico-refs-fonte">
-                  Exemplos da biblioteca para a praga indicada (não são a sua foto) · Commons / iNaturalist
+                  Exemplos da biblioteca (não são a sua foto) · Commons / iNaturalist
                 </p>
               </div>
             ) : null}
@@ -610,18 +666,24 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
                     : 'Fallback FitoSmart — não identifica a praga'}
             </p>
           </div>
-          <button type="button" className="ligacao sintomas-foto-corrigir" onClick={() => setSintomasManuais(true)}>
-            Corrigir sintomas
-          </button>
+          <div className="diagnostico-acoes">
+            <button type="button" className="secundario" onClick={() => setSintomasManuais(true)}>
+              {diagnostico.hipotese || diagnostico.confianca < 60
+                ? 'Rever sintomas e confirmar'
+                : 'Corrigir sintomas'}
+            </button>
+          </div>
         </div>
       ) : null}
-      {sintomasManuais ? (
+      {sintomasManuais && !aAnalisarFoto ? (
         <fieldset
           ref={sintomasRef}
+          className="form-bloco"
           aria-invalid={campoErro === 'sintomas'}
           aria-describedby={campoErro === 'sintomas' ? 'erro-formulario previsao-triagem' : 'previsao-triagem'}
         >
           <legend>Sintomas</legend>
+          <p className="nota form-bloco-ajuda">Marque o que observa na planta.</p>
           <div className="sintomas">
             {SINTOMAS.map((item) => (
               <SintomaOpcao key={item.id} id={item.id} rotulo={item.rotulo} marcado={sintomas.has(item.id)} aoAlternar={alternarSintoma} />
@@ -648,8 +710,13 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
           {aviso}
         </p>
       ) : null}
-      <button type="submit" className="primario enviar" disabled={aEnviar} aria-busy={aEnviar}>
-        {aEnviar ? 'A enviar…' : 'Submeter ocorrência'}
+      <button
+        type="submit"
+        className="primario enviar"
+        disabled={aEnviar || aAnalisarFoto}
+        aria-busy={aEnviar || aAnalisarFoto}
+      >
+        {aAnalisarFoto ? 'A analisar fotografia…' : aEnviar ? 'A enviar…' : 'Submeter ocorrência'}
       </button>
     </form>
   );

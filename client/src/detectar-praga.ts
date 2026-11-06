@@ -20,8 +20,8 @@ function blobDoCanvas(canvas: HTMLCanvasElement, qualidade: number) {
 
 export async function comprimirFotografia(ficheiro: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(ficheiro);
-  // 640px: mais rápido no LLaVA sem perder sintomas foliares.
-  const max = 640;
+  // 1024px: mantém lesões alongadas legíveis para o LLaVA.
+  const max = 1024;
   const escala = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(bitmap.width * escala));
@@ -33,7 +33,7 @@ export async function comprimirFotografia(ficheiro: Blob): Promise<Blob> {
   }
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  return blobDoCanvas(canvas, 0.7);
+  return blobDoCanvas(canvas, 0.85);
 }
 
 export async function detectarPraga(

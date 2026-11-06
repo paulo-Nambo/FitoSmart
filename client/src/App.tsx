@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { listarOcorrencias, type Ocorrencia } from './api';
-import { BarraLateral, lerMenu, urlDoMenu, type MenuId } from './barra-lateral';
+import { BarraLateral, eMenuPermitido, lerMenu, urlDoMenu, type MenuId } from './barra-lateral';
 import { EcraLogin } from './ecra-login';
 import { FormularioPerfil } from './formulario-perfil';
 import { FormularioAlterarSenha } from './formulario-senha';
@@ -107,7 +107,15 @@ export function App() {
   useEffect(() => {
     if (!sessao) return;
     const perfil = sessao.perfil;
-    const sincronizar = () => setMenu(lerMenu(perfil));
+    const aplicarMenu = (proximo: MenuId) => {
+      setMenu(proximo);
+      const url = urlDoMenu(proximo);
+      if (url !== `${window.location.pathname}${window.location.search}`) {
+        window.history.replaceState(null, '', url);
+      }
+    };
+    aplicarMenu(lerMenu(perfil));
+    const sincronizar = () => aplicarMenu(lerMenu(perfil));
     window.addEventListener('popstate', sincronizar);
     return () => window.removeEventListener('popstate', sincronizar);
   }, [sessao]);
@@ -150,13 +158,17 @@ export function App() {
     );
   }, []);
 
-  const escolherMenu = useCallback((proximo: MenuId) => {
-    setMenu(proximo);
-    const url = urlDoMenu(proximo);
-    if (url !== `${window.location.pathname}${window.location.search}`) {
-      window.history.pushState(null, '', url);
-    }
-  }, []);
+  const escolherMenu = useCallback(
+    (proximo: MenuId) => {
+      if (!sessao || !eMenuPermitido(sessao.perfil, proximo)) return;
+      setMenu(proximo);
+      const url = urlDoMenu(proximo);
+      if (url !== `${window.location.pathname}${window.location.search}`) {
+        window.history.pushState(null, '', url);
+      }
+    },
+    [sessao],
+  );
 
   if (sessao === null) {
     return <EcraLogin aoEntrar={setSessao} aoPrever={preverEcra} />;
@@ -184,15 +196,15 @@ export function App() {
         <Suspense fallback={RESERVA}>
           {menu === 'tempo' ? (
             <EcraTempo />
-          ) : menu === 'acesso' ? (
+          ) : menu === 'acesso' && podeGerirContas(sessao.perfil) ? (
             <EcraAcesso token={sessao.token} emailSessao={sessao.email} />
-          ) : menu === 'config' ? (
+          ) : menu === 'config' && podeConfigurar(sessao.perfil) ? (
             <EcraConfig token={sessao.token} />
-          ) : menu === 'fila' ? (
+          ) : menu === 'fila' && podeValidar(sessao.perfil) ? (
             <EcraTecnico menu={menu} token={sessao.token} ocorrencias={ocorrencias} aoValidar={validar} />
           ) : (
             <EcraOcorrencia
-              menu={menu}
+              menu={menu === 'acesso' || menu === 'config' || menu === 'fila' ? 'painel' : menu}
               token={sessao.token}
               ocorrencias={ocorrencias}
               aoRegistar={registar}

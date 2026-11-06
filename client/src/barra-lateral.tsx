@@ -318,10 +318,14 @@ function menusDoPerfil(perfil: Sessao['perfil']) {
   return MENUS_POR_PERFIL[perfil];
 }
 
+export function eMenuPermitido(perfil: Sessao['perfil'], id: MenuId): boolean {
+  return menusDoPerfil(perfil).some((item) => item.id === id);
+}
+
 export function lerMenu(perfil: Sessao['perfil']): MenuId {
   const menus = menusDoPerfil(perfil);
   const valor = new URLSearchParams(window.location.search).get('menu');
-  if (menus.some((item) => item.id === valor)) return valor as MenuId;
+  if (valor && eMenuPermitido(perfil, valor as MenuId)) return valor as MenuId;
   return menus[0]?.id ?? 'painel';
 }
 

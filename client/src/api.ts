@@ -205,6 +205,8 @@ export interface Diagnostico {
   resumo: string;
   imagensReferencia: string[];
   referenciaId: string | null;
+  hipotese: boolean;
+  alternativas: string[];
 }
 
 export async function diagnosticarImagem(token: string, blob: Blob, cultura: string) {
@@ -229,7 +231,17 @@ export async function diagnosticarImagem(token: string, blob: Blob, cultura: str
   if (!dados.diagnostico) {
     throw new ErroApi('A API não devolveu o diagnóstico', resposta.status);
   }
-  return dados.diagnostico;
+  const bruto = dados.diagnostico;
+  return {
+    ...bruto,
+    hipotese:
+      typeof bruto.hipotese === 'boolean'
+        ? bruto.hipotese
+        : /hipótese|por confirmar/i.test(bruto.praga) || bruto.confianca < 60,
+    alternativas: Array.isArray(bruto.alternativas)
+      ? bruto.alternativas.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      : [],
+  };
 }
 
 export async function enviarImagem(token: string, id: string, blob: Blob) {

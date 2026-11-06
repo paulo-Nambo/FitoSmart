@@ -366,7 +366,7 @@ export function EcraAcesso({ token, emailSessao }: { token: string; emailSessao:
         <div>
           <h1 className="titulo">Gestão de acesso</h1>
           <p className="nota">
-            Cada conta tem um titular e, se fizer sentido, a organização. Só técnicos criam contas e mudam perfis.
+            Cada conta tem um titular e, se fizer sentido, a organização. Só administradores de contas ou do sistema criam contas e mudam perfis.
           </p>
         </div>
       </header>

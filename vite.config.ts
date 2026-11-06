@@ -13,17 +13,17 @@ export default defineConfig({
     alias: { '@': path.resolve(raiz, 'client/src') },
   },
   server: {
-    port: 5173,
+    port: 5176,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3005',
         // LLaVA pode demorar 1–2 min; o default do proxy corta cedo demais.
         timeout: 180_000,
         proxyTimeout: 180_000,
       },
       // Biblioteca de referência: na BD (PostgreSQL) via API.
       '/referencias': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3005',
       },
     },
   },

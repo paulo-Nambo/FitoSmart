@@ -41,6 +41,7 @@ interface CampoImagensProps {
   token: string;
   cultura: string;
   aoDetectar: (sintomas: string[], diagnostico: Diagnostico | null) => void;
+  aoAnalisar?: (activo: boolean) => void;
   aoErro: (mensagem: string) => void;
 }
 
@@ -110,6 +111,7 @@ export const CampoImagens = memo(function CampoImagens({
   token,
   cultura,
   aoDetectar,
+  aoAnalisar,
   aoErro,
 }: CampoImagensProps) {
   const [fotos, setFotos] = useState<FotoVista[]>([]);
@@ -120,12 +122,19 @@ export const CampoImagens = memo(function CampoImagens({
   const tokenRef = useRef(token);
   const arrastoRef = useRef(0);
   const aoDetectarRef = useRef(aoDetectar);
+  const aoAnalisarRef = useRef(aoAnalisar);
   const aoErroRef = useRef(aoErro);
   fotosRef.current = fotos;
   culturaRef.current = cultura;
   tokenRef.current = token;
   aoDetectarRef.current = aoDetectar;
+  aoAnalisarRef.current = aoAnalisar;
   aoErroRef.current = aoErro;
+
+  function marcarAnalise(activo: boolean) {
+    setAAnalisar(activo);
+    aoAnalisarRef.current?.(activo);
+  }
 
   useImperativeHandle(
     ref,
@@ -168,7 +177,7 @@ export const CampoImagens = memo(function CampoImagens({
       }
       if (validos.length === 0) return;
 
-      setAAnalisar(true);
+      marcarAnalise(true);
       try {
         const comprimidas = await Promise.all(validos.map((ficheiro) => comprimirFotografia(ficheiro)));
         const rascunhos: FotoVista[] = comprimidas.map((blob) => ({
@@ -200,7 +209,7 @@ export const CampoImagens = memo(function CampoImagens({
       } catch {
         aoErroRef.current('Não foi possível ler a fotografia. Use JPEG, PNG ou WebP.');
       } finally {
-        setAAnalisar(false);
+        marcarAnalise(false);
       }
     },
     [sincronizar],

@@ -25,6 +25,8 @@ export interface CampoImagensHandle {
   ler(): FotoPronta[];
   sujo(): boolean;
   limpar(): void;
+  /** Volta a diagnosticar as fotos já carregadas com a cultura actual. */
+  reanalisar(): Promise<void>;
 }
 
 interface FotoVista {
@@ -67,6 +69,8 @@ function unirSintomas(lista: FotoVista[]) {
 }
 
 function melhorDiagnostico(lista: FotoVista[]): Diagnostico | null {
+  const incompativel = lista.find((foto) => foto.diagnostico?.culturaConfere === false)?.diagnostico;
+  if (incompativel) return incompativel;
   let melhor: Diagnostico | null = null;
   for (const foto of lista) {
     if (!foto.diagnostico) continue;
@@ -136,6 +140,35 @@ export const CampoImagens = memo(function CampoImagens({
     aoAnalisarRef.current?.(activo);
   }
 
+  const sincronizar = useCallback((lista: FotoVista[]) => {
+    aoDetectarRef.current(unirSintomas(lista), melhorDiagnostico(lista));
+  }, []);
+
+  const reanalisar = useCallback(async () => {
+    const actuais = fotosRef.current;
+    if (actuais.length === 0) return;
+    marcarAnalise(true);
+    try {
+      const analisadas = await Promise.all(
+        actuais.map(async (foto) => {
+          const deteccao = await detectarPraga(foto.blob, tokenRef.current, culturaRef.current);
+          return {
+            ...foto,
+            sintomas: deteccao.sintomas,
+            resumo: deteccao.resumo,
+            diagnostico: deteccao.diagnostico,
+          };
+        }),
+      );
+      setFotos(analisadas);
+      sincronizar(analisadas);
+    } catch {
+      aoErroRef.current('Não foi possível voltar a analisar as fotografias.');
+    } finally {
+      marcarAnalise(false);
+    }
+  }, [sincronizar]);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -145,18 +178,15 @@ export const CampoImagens = memo(function CampoImagens({
         for (const foto of fotosRef.current) URL.revokeObjectURL(foto.preview);
         setFotos([]);
       },
+      reanalisar,
     }),
-    [],
+    [reanalisar],
   );
 
   useEffect(() => {
     return () => {
       for (const foto of fotosRef.current) URL.revokeObjectURL(foto.preview);
     };
-  }, []);
-
-  const sincronizar = useCallback((lista: FotoVista[]) => {
-    aoDetectarRef.current(unirSintomas(lista), melhorDiagnostico(lista));
   }, []);
 
   const acrescentar = useCallback(

@@ -219,6 +219,8 @@ export interface Diagnostico {
   referenciaId: string | null;
   hipotese: boolean;
   alternativas: string[];
+  culturaConfere?: boolean;
+  alertaCultura?: string | null;
 }
 
 export async function diagnosticarImagem(token: string, blob: Blob, cultura: string) {

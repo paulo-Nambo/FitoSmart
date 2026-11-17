@@ -21,6 +21,10 @@ export interface Diagnostico {
   hipotese: boolean;
   /** Outras causas plausíveis a comparar no talhão. */
   alternativas: string[];
+  /** A cultura na foto é compatível com a seleccionada (ou não foi possível verificar). */
+  culturaConfere?: boolean;
+  /** Aviso quando a foto parece ser de outra cultura. */
+  alertaCultura?: string | null;
 }
 
 function anexarReferencia(opcoes: OpcoesReferencia): Pick<Diagnostico, 'imagensReferencia' | 'referenciaId'> {
@@ -29,6 +33,86 @@ function anexarReferencia(opcoes: OpcoesReferencia): Pick<Diagnostico, 'imagensR
   return {
     imagensReferencia: entrada?.imagens.slice(0, limite) ?? [],
     referenciaId: entrada?.id ?? null,
+  };
+}
+
+/** Mapeia nomes comuns (EN/PT/científico) para as culturas do MVP. */
+export function mapearCulturaDetectada(texto: string | null | undefined): string | null {
+  if (!texto) return null;
+  const n = texto
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLocaleLowerCase('pt');
+  if (/milho|\bmaize\b|\bcorn\b|zea\s*mays|cartucho/.test(n)) return 'Milho';
+  if (/mandioca|\bcassava\b|manioc|manihot/.test(n)) return 'Mandioca';
+  if (/feijao|\bbean\b|phaseolus|common bean|feijão/.test(n) || /feijao/.test(n)) return 'Feijão';
+  if (/tomate|\btomato\b|solanum\s*lycopersicum|tomato/.test(n)) return 'Tomate';
+  return null;
+}
+
+function textoSugereOutraCultura(texto: string, seleccionada: string): string | null {
+  const padroes: Record<string, RegExp> = {
+    Milho: /milho|\bmaize\b|\bcorn\b|zea\s*mays/i,
+    Mandioca: /mandioca|\bcassava\b|manioc|manihot/i,
+    Feijão: /feij[aã]o|\bbeans?\b|phaseolus/i,
+    Tomate: /tomat|\blycopersicum\b/i,
+  };
+  for (const cultura of CULTURAS) {
+    if (cultura === seleccionada) continue;
+    if (padroes[cultura]?.test(texto)) return cultura;
+  }
+  return null;
+}
+
+/**
+ * Garante que o diagnóstico da imagem é coerente com a cultura escolhida no formulário.
+ * Em conflito claro: zera sintomas automáticos e exige correção da cultura ou da foto.
+ */
+export function validarCulturaSeleccionada(diag: Diagnostico, culturaPreferida?: string): Diagnostico {
+  const seleccionada =
+    culturaPreferida && CULTURAS.has(culturaPreferida) ? culturaPreferida : null;
+  if (!seleccionada) {
+    return { ...diag, culturaConfere: true, alertaCultura: null };
+  }
+
+  const detectada =
+    mapearCulturaDetectada(diag.culturaDetectada) ||
+    mapearCulturaDetectada(diag.praga) ||
+    mapearCulturaDetectada(diag.nomeCientifico) ||
+    mapearCulturaDetectada(diag.resumo);
+
+  const outraNoTexto =
+    detectada && detectada !== seleccionada
+      ? detectada
+      : textoSugereOutraCultura(
+          `${diag.praga} ${diag.nomeCientifico ?? ''} ${diag.resumo ?? ''}`,
+          seleccionada,
+        );
+
+  if (outraNoTexto && outraNoTexto !== seleccionada) {
+    return {
+      ...diag,
+      praga: `Cultura incorrecta na fotografia`,
+      nomeCientifico: null,
+      culturaDetectada: outraNoTexto,
+      sintomas: [],
+      confianca: 0,
+      recomendacao: `A fotografia parece ser de ${outraNoTexto}, mas seleccionou ${seleccionada}. Corrija a cultura ou carregue uma foto da cultura certa.`,
+      resumo: `Incompatível: foto≈${outraNoTexto}, formulário=${seleccionada}.`,
+      hipotese: true,
+      alternativas: [],
+      imagensReferencia: [],
+      referenciaId: null,
+      culturaConfere: false,
+      alertaCultura: `A imagem não corresponde a ${seleccionada} (detectado: ${outraNoTexto}).`,
+    };
+  }
+
+  return {
+    ...diag,
+    culturaDetectada: detectada ?? diag.culturaDetectada ?? seleccionada,
+    culturaConfere: true,
+    alertaCultura: null,
   };
 }
 
@@ -1005,7 +1089,10 @@ const CLASSES_OPENEPI: Record<string, ClasseOpenEpi> = {
   },
 };
 
-async function diagnosticarOpenEpi(buffer: Buffer): Promise<Diagnostico | null> {
+async function diagnosticarOpenEpi(
+  buffer: Buffer,
+  culturaPreferida?: string,
+): Promise<Diagnostico | null> {
   const resposta = await fetch('https://api.openepi.io/crop-health/predictions/multi-HLT', {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
@@ -1026,6 +1113,15 @@ async function diagnosticarOpenEpi(buffer: Buffer): Promise<Diagnostico | null> 
   if (!meta) return null;
   // Saudável com baixa margem → deixa outros motores tentar
   if (meta.saudavel && probabilidade < 0.55) return null;
+  // Cultura da classe OpenEPI tem de coincidir com a seleccionada.
+  if (
+    culturaPreferida &&
+    meta.cultura &&
+    CULTURAS.has(culturaPreferida) &&
+    meta.cultura !== culturaPreferida
+  ) {
+    return null;
+  }
 
   const confianca = Math.max(35, Math.min(96, Math.round(probabilidade * 100)));
   return {
@@ -1121,6 +1217,32 @@ async function diagnosticarPlantNet(
 
   const cientifico = melhor.disease?.scientificName?.trim() || null;
   const confianca = Math.max(40, Math.min(94, Math.round(score * 100)));
+  const culturaNoTexto =
+    mapearCulturaDetectada(rotulo) || mapearCulturaDetectada(cientifico);
+  if (
+    culturaPreferida &&
+    CULTURAS.has(culturaPreferida) &&
+    culturaNoTexto &&
+    culturaNoTexto !== culturaPreferida
+  ) {
+    return validarCulturaSeleccionada(
+      {
+        praga: `Fotografia de ${culturaNoTexto}`,
+        nomeCientifico: null,
+        culturaDetectada: culturaNoTexto,
+        sintomas: [],
+        confianca: 0,
+        recomendacao: `A fotografia parece ser de ${culturaNoTexto}, mas seleccionou ${culturaPreferida}.`,
+        motor: 'plantnet',
+        resumo: `Cultura detectada: ${culturaNoTexto}.`,
+        hipotese: true,
+        alternativas: [],
+        imagensReferencia: [],
+        referenciaId: null,
+      },
+      culturaPreferida,
+    );
+  }
   const sintomas = sintomasDeNomeDoenca(rotulo);
   const alternativas = resultados
     .slice(1, 3)
@@ -1131,7 +1253,7 @@ async function diagnosticarPlantNet(
   return {
     praga: rotulo,
     nomeCientifico: cientifico,
-    culturaDetectada: culturaPreferida ?? null,
+    culturaDetectada: culturaNoTexto ?? culturaPreferida ?? null,
     sintomas,
     confianca,
     recomendacao: 'Confirme no talhão e compare com as referências; trate só após identificação segura.',
@@ -1190,17 +1312,38 @@ async function diagnosticarKindwise(
   const cientifico = melhor.scientific_name?.trim() || null;
   const confianca = Math.max(40, Math.min(94, Math.round(probabilidade * 100)));
   const culturaCrop = corpo.result?.crop?.suggestions?.[0]?.name?.trim();
+  const probabilidadeCrop = corpo.result?.crop?.suggestions?.[0]?.probability;
   const culturaDetectada =
-    culturaPreferida ??
-    (culturaCrop && /maize|corn|milho/i.test(culturaCrop)
-      ? 'Milho'
-      : culturaCrop && /cassava|mandioca/i.test(culturaCrop)
-        ? 'Mandioca'
-        : culturaCrop && /bean|feij/i.test(culturaCrop)
-          ? 'Feijão'
-          : culturaCrop && /tomato|tomat/i.test(culturaCrop)
-            ? 'Tomate'
-            : null);
+    mapearCulturaDetectada(culturaCrop) ||
+    mapearCulturaDetectada(praga) ||
+    mapearCulturaDetectada(cientifico);
+
+  // Cultura na foto clara e diferente da seleccionada → diagnóstico de incompatibilidade.
+  if (
+    culturaPreferida &&
+    CULTURAS.has(culturaPreferida) &&
+    culturaDetectada &&
+    culturaDetectada !== culturaPreferida &&
+    (typeof probabilidadeCrop !== 'number' || probabilidadeCrop >= 0.25)
+  ) {
+    return validarCulturaSeleccionada(
+      {
+        praga: `Fotografia de ${culturaDetectada}`,
+        nomeCientifico: null,
+        culturaDetectada,
+        sintomas: [],
+        confianca: 0,
+        recomendacao: `A fotografia parece ser de ${culturaDetectada}, mas seleccionou ${culturaPreferida}.`,
+        motor: 'kindwise',
+        resumo: `Cultura detectada: ${culturaDetectada}.`,
+        hipotese: true,
+        alternativas: [],
+        imagensReferencia: [],
+        referenciaId: null,
+      },
+      culturaPreferida,
+    );
+  }
 
   const alternativas = sugestoes
     .slice(1, 3)
@@ -1210,7 +1353,7 @@ async function diagnosticarKindwise(
   return {
     praga,
     nomeCientifico: cientifico,
-    culturaDetectada,
+    culturaDetectada: culturaDetectada ?? culturaPreferida ?? null,
     sintomas: sintomasDeNomeDoenca(praga),
     confianca,
     recomendacao: 'Confirme a identificação no campo antes de aplicar qualquer tratamento.',
@@ -1275,60 +1418,71 @@ async function enriquecerComWikipedia(diag: Diagnostico): Promise<Diagnostico> {
   };
 }
 
+async function fecharDiagnostico(
+  diag: Diagnostico,
+  culturaPreferida?: string,
+): Promise<Diagnostico> {
+  const validado = validarCulturaSeleccionada(diag, culturaPreferida);
+  if (validado.culturaConfere === false) return validado;
+  return enriquecerComWikipedia(validado);
+}
+
 export async function diagnosticarImagem(buffer: Buffer, culturaPreferida?: string): Promise<Diagnostico> {
   const reserva = diagnosticarLocal(buffer, culturaPreferida);
   // OpenEPI cobre milho, mandioca e feijão — não tomate.
   const openepiServe =
     !culturaPreferida || culturaPreferida === 'Milho' || culturaPreferida === 'Mandioca' || culturaPreferida === 'Feijão';
   const chavePlantNet = process.env.PLANTNET_API_KEY?.trim();
-  const kindwiseCedo = !openepiServe;
 
-  const pedidoOpenEpi = openepiServe ? comTempoLimite(diagnosticarOpenEpi(buffer), 12000) : Promise.resolve(null);
+  const pedidoOpenEpi = openepiServe
+    ? comTempoLimite(diagnosticarOpenEpi(buffer, culturaPreferida), 12000)
+    : Promise.resolve(null);
   const pedidoPlantNet = chavePlantNet
     ? comTempoLimite(diagnosticarPlantNet(buffer, chavePlantNet, culturaPreferida), 15000)
     : Promise.resolve(null);
-  const pedidoKindwiseCedo = kindwiseCedo
-    ? comTempoLimite(diagnosticarKindwise(buffer, culturaPreferida), 12000)
-    : null;
+  // Kindwise também valida se a cultura da foto coincide com a seleccionada.
+  const pedidoKindwise = comTempoLimite(diagnosticarKindwise(buffer, culturaPreferida), 12000);
   const pedidoOllama = hostOllama()
     ? comTempoLimite(diagnosticarOllama(buffer, culturaPreferida), 150000)
     : Promise.resolve(null);
 
-  const openepi = await pedidoOpenEpi;
-  if (openepi && diagnosticoCloudForte(openepi)) return enriquecerComWikipedia(openepi);
+  const [openepi, plantnet, kindwise] = await Promise.all([
+    pedidoOpenEpi,
+    pedidoPlantNet,
+    pedidoKindwise,
+  ]);
 
-  const plantnet = await pedidoPlantNet;
-  if (plantnet && diagnosticoCloudForte(plantnet)) return enriquecerComWikipedia(plantnet);
+  if (kindwise && kindwise.culturaConfere === false) return kindwise;
+  if (plantnet && plantnet.culturaConfere === false) return plantnet;
 
-  const kindwise =
-    (pedidoKindwiseCedo ? await pedidoKindwiseCedo : null) ??
-    (await comTempoLimite(diagnosticarKindwise(buffer, culturaPreferida), 12000));
-  if (kindwise && diagnosticoCloudForte(kindwise)) return enriquecerComWikipedia(kindwise);
+  if (openepi && diagnosticoCloudForte(openepi)) return fecharDiagnostico(openepi, culturaPreferida);
+  if (plantnet && diagnosticoCloudForte(plantnet)) return fecharDiagnostico(plantnet, culturaPreferida);
+  if (kindwise && diagnosticoCloudForte(kindwise)) return fecharDiagnostico(kindwise, culturaPreferida);
 
   const ollama = await pedidoOllama;
   if (ollama && !diagnosticoVisaoFraco(ollama) && ollama.confianca > 0) {
-    return enriquecerComWikipedia(ollama);
+    return fecharDiagnostico(ollama, culturaPreferida);
   }
 
   const chaveGemini = process.env.GEMINI_API_KEY?.trim();
   if (chaveGemini) {
     const ia = await comTempoLimite(diagnosticarGemini(buffer, chaveGemini, culturaPreferida), 20000);
     if (ia && !diagnosticoVisaoFraco(ia) && (ia.confianca > 0 || ia.sintomas.length > 0)) {
-      return enriquecerComWikipedia(ia);
+      return fecharDiagnostico(ia, culturaPreferida);
     }
     if (ia && (ia.confianca > 0 || ia.sintomas.length > 0) && diagnosticoVisaoFraco(ollama)) {
-      return enriquecerComWikipedia(ia);
+      return fecharDiagnostico(ia, culturaPreferida);
     }
   }
 
   if (ollama && (ollama.confianca > 0 || ollama.sintomas.length > 0)) {
-    return enriquecerComWikipedia(ollama);
+    return fecharDiagnostico(ollama, culturaPreferida);
   }
-  if (plantnet && plantnet.confianca > 0) return enriquecerComWikipedia(plantnet);
-  if (kindwise && kindwise.confianca > 0) return enriquecerComWikipedia(kindwise);
-  if (openepi && openepi.confianca > 0) return enriquecerComWikipedia(openepi);
+  if (plantnet && plantnet.confianca > 0) return fecharDiagnostico(plantnet, culturaPreferida);
+  if (kindwise && kindwise.confianca > 0) return fecharDiagnostico(kindwise, culturaPreferida);
+  if (openepi && openepi.confianca > 0) return fecharDiagnostico(openepi, culturaPreferida);
 
-  return enriquecerComWikipedia(reserva);
+  return fecharDiagnostico(reserva, culturaPreferida);
 }
 
 export async function diagnosticoHandler(req: Request, res: Response): Promise<void> {

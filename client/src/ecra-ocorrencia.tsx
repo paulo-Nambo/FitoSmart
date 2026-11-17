@@ -483,8 +483,15 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
   const aplicarDeteccao = useCallback(
     (detectados: string[], resultado: Diagnostico | null) => {
       limparErro('sintomas');
-      setSintomas(new Set(detectados));
+      const culturaOk = resultado?.culturaConfere !== false;
       setDiagnostico(resultado);
+      if (!culturaOk) {
+        setSintomas(new Set());
+        setSintomasManuais(true);
+        setErro(resultado?.alertaCultura ?? 'A fotografia não corresponde à cultura seleccionada.');
+        return;
+      }
+      setSintomas(new Set(detectados));
       setSintomasManuais(detectados.length === 0 && !(resultado && resultado.confianca > 0));
     },
     [limparErro],
@@ -592,7 +599,15 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
               name="cultura"
               autoComplete="off"
               value={cultura}
-              onChange={(evento) => setCultura(evento.target.value as (typeof CULTURAS)[number])}
+              onChange={(evento) => {
+                const proxima = evento.target.value as (typeof CULTURAS)[number];
+                setCultura(proxima);
+                setDiagnostico(null);
+                setSintomas(new Set());
+                setSintomasManuais(false);
+                setErro(null);
+                void imagensRef.current?.reanalisar?.();
+              }}
             >
               {OPCOES_CULTURA}
             </select>
@@ -648,7 +663,26 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
           A analisar a fotografia… os sintomas aparecem automaticamente quando terminar.
         </p>
       ) : null}
-      {diagnostico && diagnostico.confianca > 0 && !sintomasManuais && !aAnalisarFoto ? (
+      {diagnostico && diagnostico.culturaConfere === false && !aAnalisarFoto ? (
+        <div className="sintomas-foto" aria-live="assertive">
+          <div className="diagnostico diagnostico-hipotese diagnostico-cultura-erro">
+            <p className="sintomas-foto-rotulo">Cultura e fotografia incompatíveis</p>
+            <p className="diagnostico-praga">{diagnostico.praga}</p>
+            <p className="diagnostico-acao">
+              {diagnostico.alertaCultura ?? diagnostico.recomendacao}
+            </p>
+            <p className="nota">
+              Altere a cultura no formulário ou carregue uma fotografia da cultura seleccionada
+              ({cultura}).
+            </p>
+          </div>
+        </div>
+      ) : null}
+      {diagnostico &&
+      diagnostico.culturaConfere !== false &&
+      diagnostico.confianca > 0 &&
+      !sintomasManuais &&
+      !aAnalisarFoto ? (
         <div className="sintomas-foto" aria-live="polite">
           <div
             className={`diagnostico${diagnostico.motor === 'fitosmart' ? ' diagnostico-local' : ''}${

@@ -2983,6 +2983,11 @@ input[aria-invalid='true']:focus-visible {
   .acesso-movel { display: none; }
 }
 
+.diagnostico-cultura-erro {
+  border-color: #b42318;
+  background: rgba(180, 35, 24, 0.06);
+}
+
 .lista-cabeca-accoes {
   display: flex;
   flex-wrap: wrap;

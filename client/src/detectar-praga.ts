@@ -43,9 +43,10 @@ export async function detectarPraga(
 ): Promise<ResultadoDeteccao> {
   try {
     const diagnostico = await diagnosticarImagem(token, ficheiro, cultura);
+    const culturaOk = diagnostico.culturaConfere !== false;
     return {
-      sintomas: diagnostico.sintomas,
-      resumo: diagnostico.resumo,
+      sintomas: culturaOk ? diagnostico.sintomas : [],
+      resumo: diagnostico.alertaCultura || diagnostico.resumo,
       diagnostico,
     };
   } catch {

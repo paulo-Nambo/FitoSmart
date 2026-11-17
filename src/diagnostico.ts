@@ -13,7 +13,7 @@ export interface Diagnostico {
   sintomas: string[];
   confianca: number;
   recomendacao: string;
-  motor: 'openepi' | 'ollama' | 'gemini' | 'fitosmart';
+  motor: 'openepi' | 'plantnet' | 'kindwise' | 'ollama' | 'gemini' | 'fitosmart';
   resumo: string;
   imagensReferencia: string[];
   referenciaId: string | null;
@@ -1049,36 +1049,286 @@ async function diagnosticarOpenEpi(buffer: Buffer): Promise<Diagnostico | null> 
   };
 }
 
+function sintomasDeNomeDoenca(nome: string): string[] {
+  const n = nome.toLocaleLowerCase('pt');
+  const sintomas: string[] = [];
+  if (/yellow|amarelo|mosaic|mosaico|chloros|spot|mancha|blight|rust|ferrugem|streak|estria/.test(n)) {
+    sintomas.push('manchas_amarelas');
+  }
+  if (/blight|necros|dry|seca|burn|leaf spot|mancha|rust|ferrugem/.test(n)) {
+    sintomas.push('folhas_secas');
+  }
+  if (/wilt|murch|virus|necros/.test(n)) sintomas.push('murcha');
+  if (/pest|insect|beetle|aphid|praga|larva|worm|mite|thrips|borer|cartucho/.test(n)) {
+    sintomas.push('pragas_visiveis');
+  }
+  return sintomas.length > 0 ? [...new Set(sintomas)] : ['manchas_amarelas'];
+}
+
+function eDoencaSaudavel(nome: string): boolean {
+  return /healthy|saud[aá]vel|no disease|sem doen/i.test(nome);
+}
+
+function diagnosticoCloudForte(diag: Diagnostico | null): boolean {
+  if (!diag || diag.confianca < 45 || diag.hipotese) return false;
+  // Saudável com boa margem conta como resposta útil (não gasta Kindwise).
+  if (eDoencaSaudavel(diag.praga)) return diag.confianca >= 55;
+  return true;
+}
+
+/** Pl@ntNet Diseases — até 500 id/dia com chave gratuita. */
+async function diagnosticarPlantNet(
+  buffer: Buffer,
+  chave: string,
+  culturaPreferida?: string,
+): Promise<Diagnostico | null> {
+  const formulario = new FormData();
+  formulario.append('images', new Blob([new Uint8Array(buffer)], { type: 'image/jpeg' }), 'folha.jpg');
+  formulario.append('organs', 'leaf');
+
+  const url =
+    `https://my-api.plantnet.org/v2/diseases/identify` +
+    `?api-key=${encodeURIComponent(chave)}&nb-results=3&lang=pt`;
+  const resposta = await fetch(url, {
+    method: 'POST',
+    body: formulario,
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!resposta.ok) return null;
+
+  const corpo = (await resposta.json()) as {
+    results?: Array<{
+      score?: number;
+      disease?: { name?: string; label?: string; scientificName?: string };
+      name?: string;
+      label?: string;
+    }>;
+  };
+  const resultados = corpo.results ?? [];
+  if (resultados.length === 0) return null;
+
+  const melhor = resultados[0];
+  const score = typeof melhor.score === 'number' ? melhor.score : 0;
+  if (score < 0.12) return null;
+
+  const rotulo =
+    melhor.disease?.label?.trim() ||
+    melhor.disease?.name?.trim() ||
+    melhor.label?.trim() ||
+    melhor.name?.trim() ||
+    '';
+  if (!rotulo || eDoencaSaudavel(rotulo)) return null;
+
+  const cientifico = melhor.disease?.scientificName?.trim() || null;
+  const confianca = Math.max(40, Math.min(94, Math.round(score * 100)));
+  const sintomas = sintomasDeNomeDoenca(rotulo);
+  const alternativas = resultados
+    .slice(1, 3)
+    .map((item) => item.disease?.label || item.disease?.name || item.label || item.name)
+    .filter((item): item is string => Boolean(item && item.trim()))
+    .map((item) => item.trim());
+
+  return {
+    praga: rotulo,
+    nomeCientifico: cientifico,
+    culturaDetectada: culturaPreferida ?? null,
+    sintomas,
+    confianca,
+    recomendacao: 'Confirme no talhão e compare com as referências; trate só após identificação segura.',
+    motor: 'plantnet',
+    resumo: `Pl@ntNet: ${rotulo} (${confianca}\u00a0%).`,
+    hipotese: confianca < 55,
+    alternativas,
+    ...anexarReferencia({
+      praga: rotulo,
+      nomeCientifico: cientifico,
+      cultura: culturaPreferida ?? null,
+      limite: 4,
+    }),
+  };
+}
+
+/** Kindwise Crop.health via trial de agentes (sem chave; ~10 ped./IP/dia). */
+async function diagnosticarKindwise(
+  buffer: Buffer,
+  culturaPreferida?: string,
+): Promise<Diagnostico | null> {
+  const imagem = buffer.toString('base64');
+  const resposta = await fetch('https://agents.kindwise.com/crop_health/identification', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ images: [imagem] }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!resposta.ok) return null;
+
+  const corpo = (await resposta.json()) as {
+    result?: {
+      disease?: {
+        suggestions?: Array<{
+          name?: string;
+          scientific_name?: string;
+          probability?: number;
+        }>;
+      };
+      crop?: {
+        suggestions?: Array<{ name?: string; scientific_name?: string; probability?: number }>;
+      };
+    };
+  };
+
+  const sugestoes = corpo.result?.disease?.suggestions ?? [];
+  if (sugestoes.length === 0) return null;
+
+  const melhor = sugestoes[0];
+  const probabilidade = typeof melhor.probability === 'number' ? melhor.probability : 0;
+  if (probabilidade < 0.15) return null;
+
+  const praga = (melhor.name ?? '').trim();
+  if (!praga || eDoencaSaudavel(praga)) return null;
+
+  const cientifico = melhor.scientific_name?.trim() || null;
+  const confianca = Math.max(40, Math.min(94, Math.round(probabilidade * 100)));
+  const culturaCrop = corpo.result?.crop?.suggestions?.[0]?.name?.trim();
+  const culturaDetectada =
+    culturaPreferida ??
+    (culturaCrop && /maize|corn|milho/i.test(culturaCrop)
+      ? 'Milho'
+      : culturaCrop && /cassava|mandioca/i.test(culturaCrop)
+        ? 'Mandioca'
+        : culturaCrop && /bean|feij/i.test(culturaCrop)
+          ? 'Feijão'
+          : culturaCrop && /tomato|tomat/i.test(culturaCrop)
+            ? 'Tomate'
+            : null);
+
+  const alternativas = sugestoes
+    .slice(1, 3)
+    .map((item) => item.name?.trim())
+    .filter((item): item is string => Boolean(item));
+
+  return {
+    praga,
+    nomeCientifico: cientifico,
+    culturaDetectada,
+    sintomas: sintomasDeNomeDoenca(praga),
+    confianca,
+    recomendacao: 'Confirme a identificação no campo antes de aplicar qualquer tratamento.',
+    motor: 'kindwise',
+    resumo: `Kindwise: ${praga} (${confianca}\u00a0%).`,
+    hipotese: confianca < 55,
+    alternativas,
+    ...anexarReferencia({
+      praga,
+      nomeCientifico: cientifico,
+      cultura: culturaDetectada,
+      limite: 4,
+    }),
+  };
+}
+
+async function resumoWikipedia(nomeCientifico: string): Promise<string | null> {
+  const titulo = encodeURIComponent(nomeCientifico.trim().replace(/\s+/g, '_'));
+  const cabecalhos = {
+    Accept: 'application/json',
+    'User-Agent': 'FitoSmart/1.0 (UEM; educational phytosanitary MVP)',
+  };
+
+  for (const origem of ['pt.wikipedia.org', 'en.wikipedia.org'] as const) {
+    try {
+      const resposta = await fetch(`https://${origem}/api/rest_v1/page/summary/${titulo}`, {
+        headers: cabecalhos,
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!resposta.ok) continue;
+      const corpo = (await resposta.json()) as { extract?: string; type?: string };
+      if (corpo.type === 'disambiguation') continue;
+      const extract = corpo.extract?.trim();
+      if (extract && extract.length > 40) {
+        return extract.length > 220 ? `${extract.slice(0, 217).trim()}…` : extract;
+      }
+    } catch {
+      /* tenta a língua seguinte */
+    }
+  }
+  return null;
+}
+
+async function enriquecerComWikipedia(diag: Diagnostico): Promise<Diagnostico> {
+  const nome = diag.nomeCientifico?.trim();
+  if (!nome || diag.hipotese) return diag;
+
+  const extract = await resumoWikipedia(nome);
+  if (!extract) return diag;
+
+  const jaTem = diag.recomendacao.toLocaleLowerCase('pt').includes(extract.slice(0, 40).toLocaleLowerCase('pt'));
+  if (jaTem) return diag;
+
+  let recomendacao = diag.recomendacao.trim();
+  if (recomendacao.length > 0 && !recomendacao.endsWith('.')) recomendacao += '.';
+  const extra = extract;
+  const combinada = `${recomendacao} ${extra}`.trim();
+  return {
+    ...diag,
+    recomendacao: combinada.length > 320 ? `${combinada.slice(0, 317).trim()}…` : combinada,
+    resumo: diag.resumo?.trim() ? diag.resumo : extra,
+  };
+}
+
 export async function diagnosticarImagem(buffer: Buffer, culturaPreferida?: string): Promise<Diagnostico> {
   const reserva = diagnosticarLocal(buffer, culturaPreferida);
   // OpenEPI cobre milho, mandioca e feijão — não tomate.
   const openepiServe =
     !culturaPreferida || culturaPreferida === 'Milho' || culturaPreferida === 'Mandioca' || culturaPreferida === 'Feijão';
+  const chavePlantNet = process.env.PLANTNET_API_KEY?.trim();
+  const kindwiseCedo = !openepiServe;
 
-  // OpenEPI primeiro (cloud). Ollama só se OLLAMA_HOST estiver definido.
   const pedidoOpenEpi = openepiServe ? comTempoLimite(diagnosticarOpenEpi(buffer), 12000) : Promise.resolve(null);
+  const pedidoPlantNet = chavePlantNet
+    ? comTempoLimite(diagnosticarPlantNet(buffer, chavePlantNet, culturaPreferida), 15000)
+    : Promise.resolve(null);
+  const pedidoKindwiseCedo = kindwiseCedo
+    ? comTempoLimite(diagnosticarKindwise(buffer, culturaPreferida), 12000)
+    : null;
   const pedidoOllama = hostOllama()
     ? comTempoLimite(diagnosticarOllama(buffer, culturaPreferida), 150000)
     : Promise.resolve(null);
 
   const openepi = await pedidoOpenEpi;
-  if (openepi && openepi.confianca > 0 && !openepi.hipotese) return openepi;
+  if (openepi && diagnosticoCloudForte(openepi)) return enriquecerComWikipedia(openepi);
+
+  const plantnet = await pedidoPlantNet;
+  if (plantnet && diagnosticoCloudForte(plantnet)) return enriquecerComWikipedia(plantnet);
+
+  const kindwise =
+    (pedidoKindwiseCedo ? await pedidoKindwiseCedo : null) ??
+    (await comTempoLimite(diagnosticarKindwise(buffer, culturaPreferida), 12000));
+  if (kindwise && diagnosticoCloudForte(kindwise)) return enriquecerComWikipedia(kindwise);
 
   const ollama = await pedidoOllama;
-  // Preferir identificação que olhou para a foto (não só hipótese por cor).
-  if (ollama && !diagnosticoVisaoFraco(ollama) && ollama.confianca > 0) return ollama;
-
-  const chave = process.env.GEMINI_API_KEY?.trim();
-  if (chave) {
-    const ia = await comTempoLimite(diagnosticarGemini(buffer, chave, culturaPreferida), 20000);
-    if (ia && !diagnosticoVisaoFraco(ia) && (ia.confianca > 0 || ia.sintomas.length > 0)) return ia;
-    if (ia && (ia.confianca > 0 || ia.sintomas.length > 0) && diagnosticoVisaoFraco(ollama)) return ia;
+  if (ollama && !diagnosticoVisaoFraco(ollama) && ollama.confianca > 0) {
+    return enriquecerComWikipedia(ollama);
   }
 
-  if (ollama && (ollama.confianca > 0 || ollama.sintomas.length > 0)) return ollama;
-  if (openepi && openepi.confianca > 0) return openepi;
+  const chaveGemini = process.env.GEMINI_API_KEY?.trim();
+  if (chaveGemini) {
+    const ia = await comTempoLimite(diagnosticarGemini(buffer, chaveGemini, culturaPreferida), 20000);
+    if (ia && !diagnosticoVisaoFraco(ia) && (ia.confianca > 0 || ia.sintomas.length > 0)) {
+      return enriquecerComWikipedia(ia);
+    }
+    if (ia && (ia.confianca > 0 || ia.sintomas.length > 0) && diagnosticoVisaoFraco(ollama)) {
+      return enriquecerComWikipedia(ia);
+    }
+  }
 
-  return reserva;
+  if (ollama && (ollama.confianca > 0 || ollama.sintomas.length > 0)) {
+    return enriquecerComWikipedia(ollama);
+  }
+  if (plantnet && plantnet.confianca > 0) return enriquecerComWikipedia(plantnet);
+  if (kindwise && kindwise.confianca > 0) return enriquecerComWikipedia(kindwise);
+  if (openepi && openepi.confianca > 0) return enriquecerComWikipedia(openepi);
+
+  return enriquecerComWikipedia(reserva);
 }
 
 export async function diagnosticoHandler(req: Request, res: Response): Promise<void> {

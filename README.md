@@ -23,6 +23,12 @@ A interface fica em `http://localhost:5176` (Vite) e a API no `PORT` do `.env` (
 
 Para LLaVA local, no `.env`: `OLLAMA_HOST=http://127.0.0.1:11434` e `OLLAMA_MODEL=llava:latest`.
 
+### Diagnóstico por foto (APIs gratuitas)
+
+Cascata: **OpenEPI** → **Pl@ntNet** (se `PLANTNET_API_KEY`) → **Kindwise Crop.health** (sem chave, quota baixa) → Ollama/Gemini (opcional) → fallback local. Com nome científico, a recomendação pode ser enriquecida via **Wikipedia**.
+
+Chave Pl@ntNet (opcional, 500 id/dia): [my.plantnet.org](https://my.plantnet.org/).
+
 Conta de arranque (senha `FitoSmart1!`):
 
 - `paulo.baltazar@uem.mz` — Administrador do sistema (Paulo Baltazar)
@@ -37,7 +43,7 @@ O ficheiro [`render.yaml`](render.yaml) define um **Web Service** e uma **Postgr
 
 - O serviço “adormece” após ~15 min sem tráfego (o 1.º pedido demora ~1 min a acordar).
 - A base PostgreSQL Free **expira aos 30 dias** (depois tem 14 dias para fazer upgrade ou perde os dados).
-- Diagnóstico por foto: **OpenEPI** (cloud) + fallback local. Sem Ollama/LLaVA na cloud.
+- Diagnóstico por foto: **OpenEPI** + **Kindwise** (sem chave) + **Pl@ntNet** se configurar `PLANTNET_API_KEY`; fallback local. Sem Ollama/LLaVA na cloud.
 
 ### Passos
 

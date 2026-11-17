@@ -712,11 +712,15 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
             <p className="diagnostico-motor">
               {diagnostico.motor === 'openepi'
                 ? 'OpenEPI Crop Health (grátis)'
-                : diagnostico.motor === 'ollama'
-                  ? 'IA Ollama (local)'
-                  : diagnostico.motor === 'gemini'
-                    ? 'IA Gemini'
-                    : 'Fallback FitoSmart — não identifica a praga'}
+                : diagnostico.motor === 'plantnet'
+                  ? 'Pl@ntNet Diseases (grátis)'
+                  : diagnostico.motor === 'kindwise'
+                    ? 'Kindwise Crop.health (grátis)'
+                    : diagnostico.motor === 'ollama'
+                      ? 'IA Ollama (local)'
+                      : diagnostico.motor === 'gemini'
+                        ? 'IA Gemini'
+                        : 'Fallback FitoSmart — não identifica a praga'}
             </p>
           </div>
           <div className="diagnostico-acoes">

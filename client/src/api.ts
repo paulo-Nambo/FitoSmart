@@ -213,7 +213,7 @@ export interface Diagnostico {
   sintomas: string[];
   confianca: number;
   recomendacao: string;
-  motor: 'openepi' | 'ollama' | 'gemini' | 'fitosmart';
+  motor: 'openepi' | 'plantnet' | 'kindwise' | 'ollama' | 'gemini' | 'fitosmart';
   resumo: string;
   imagensReferencia: string[];
   referenciaId: string | null;

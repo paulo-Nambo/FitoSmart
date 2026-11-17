@@ -7,8 +7,8 @@ const porta = Number(process.env.PORT) || 3001;
 prepararBase()
   .then(() => {
     const app = criarApp();
-    app.listen(porta, () => {
-      console.log(`FitoSmart API em http://localhost:${porta}`);
+    app.listen(porta, '0.0.0.0', () => {
+      console.log(`FitoSmart API em http://0.0.0.0:${porta}`);
     });
   })
   .catch((erro: unknown) => {

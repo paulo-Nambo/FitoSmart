@@ -1,0 +1,31 @@
+# Blueprint Render — Web Service (free) + PostgreSQL (free, expira aos 30 dias).
+# Dashboard: New → Blueprint → ligar este repositório.
+# Docs: https://render.com/docs/free
+
+databases:
+  - name: fitosmart-db
+    plan: free
+    databaseName: fitosmart
+    user: fitosmart
+
+services:
+  - type: web
+    name: fitosmart
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/saude
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fitosmart-db
+          property: connectionString
+      # Sem OLLAMA_HOST / GEMINI_API_KEY → diagnóstico via OpenEPI + fallback local.

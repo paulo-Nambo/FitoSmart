@@ -17,14 +17,23 @@ export function criarApp() {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '16kb' }));
+  const origensPadrao = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5176',
+    'http://127.0.0.1:5176',
+    'http://localhost:3002',
+    'http://127.0.0.1:3002',
+  ];
+  const origensEnv = (process.env.CORS_ORIGIN ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
   app.use(
     cors({
-      origin: [
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:3002',
-        'http://127.0.0.1:3002',
-      ],
+      // Em produção o React é servido pelo mesmo Express (mesma origem).
+      // CORS_ORIGIN permite front separado (ex.: pré-visualização).
+      origin: origensEnv.length > 0 ? origensEnv : origensPadrao,
     }),
   );
 

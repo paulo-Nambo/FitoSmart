@@ -290,8 +290,11 @@ function limparSintomas(lista: unknown): string[] {
   return [...new Set(lista.map(String).filter((id) => SINTOMAS_VALIDOS.has(id)))];
 }
 
-function hostOllama(): string {
-  return (process.env.OLLAMA_HOST?.trim() || 'http://127.0.0.1:11434').replace(/\/$/, '');
+/** Só contacta Ollama se OLLAMA_HOST estiver definido (em Render/OpenEPI fica vazio). */
+function hostOllama(): string | null {
+  const configurado = process.env.OLLAMA_HOST?.trim();
+  if (!configurado) return null;
+  return configurado.replace(/\/$/, '');
 }
 
 function eModeloVisao(nome: string): boolean {
@@ -299,8 +302,10 @@ function eModeloVisao(nome: string): boolean {
 }
 
 async function listarModelosOllama(): Promise<string[]> {
+  const host = hostOllama();
+  if (!host) return [];
   try {
-    const resposta = await fetch(`${hostOllama()}/api/tags`, { signal: AbortSignal.timeout(2500) });
+    const resposta = await fetch(`${host}/api/tags`, { signal: AbortSignal.timeout(2500) });
     if (!resposta.ok) return [];
     const corpo = (await resposta.json()) as { models?: Array<{ name?: string }> };
     return (corpo.models ?? []).map((item) => item.name).filter((nome): nome is string => Boolean(nome));
@@ -679,11 +684,13 @@ async function chamarOllamaVisao(
   prompt: string,
   imagemBase64: string,
 ): Promise<string | null> {
+  const host = hostOllama();
+  if (!host) return null;
   const opcoes = { temperature: 0.05, num_predict: 320 };
   const timeout = AbortSignal.timeout(150000);
 
   try {
-    const gerar = await fetch(`${hostOllama()}/api/generate`, {
+    const gerar = await fetch(`${host}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -705,7 +712,7 @@ async function chamarOllamaVisao(
   }
 
   try {
-    const chat = await fetch(`${hostOllama()}/api/chat`, {
+    const chat = await fetch(`${host}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -740,6 +747,7 @@ function descricaoPareceVisao(texto: string | null): boolean {
 }
 
 async function diagnosticarOllama(buffer: Buffer, culturaPreferida?: string): Promise<Diagnostico | null> {
+  if (!hostOllama()) return null;
   const escolhido = await escolherModeloOllama();
   // Sem modelo de visão não enviamos imagem — evita “diagnóstico” só a partir do texto.
   if (!escolhido?.visao) return null;
@@ -1047,9 +1055,11 @@ export async function diagnosticarImagem(buffer: Buffer, culturaPreferida?: stri
   const openepiServe =
     !culturaPreferida || culturaPreferida === 'Milho' || culturaPreferida === 'Mandioca' || culturaPreferida === 'Feijão';
 
-  // Arrancar Ollama já (60–150 s); OpenEPI em paralelo.
-  const pedidoOllama = comTempoLimite(diagnosticarOllama(buffer, culturaPreferida), 150000);
-  const pedidoOpenEpi = openepiServe ? comTempoLimite(diagnosticarOpenEpi(buffer), 8000) : Promise.resolve(null);
+  // OpenEPI primeiro (cloud). Ollama só se OLLAMA_HOST estiver definido.
+  const pedidoOpenEpi = openepiServe ? comTempoLimite(diagnosticarOpenEpi(buffer), 12000) : Promise.resolve(null);
+  const pedidoOllama = hostOllama()
+    ? comTempoLimite(diagnosticarOllama(buffer, culturaPreferida), 150000)
+    : Promise.resolve(null);
 
   const openepi = await pedidoOpenEpi;
   if (openepi && openepi.confianca > 0 && !openepi.hipotese) return openepi;

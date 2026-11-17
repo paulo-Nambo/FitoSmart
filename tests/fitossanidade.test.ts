@@ -173,13 +173,27 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
     expect(registo.status).toBe(201);
     expect(registo.body.status).toBe('ENCAMINHADA');
 
-    const res = await request(app)
+    const semNota = await request(app)
       .post('/api/validacoes')
       .set('x-user-role', 'TECNICO')
       .send({ id: registo.body.ocorrencia.id });
+    expect(semNota.status).toBe(400);
+
+    const res = await request(app)
+      .post('/api/validacoes')
+      .set('x-user-role', 'TECNICO')
+      .send({ id: registo.body.ocorrencia.id, nota: 'Confirmado em campo: mancha foliar típica.' });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('VALIDADA');
     expect(res.body.ocorrencia?.status).toBe('VALIDADA');
+    expect(res.body.ocorrencia?.notaValidacao).toContain('Confirmado em campo');
+
+    const historico = await request(app)
+      .get(`/api/ocorrencias/${registo.body.ocorrencia.id}/historico`)
+      .set('x-user-role', 'TECNICO');
+    expect(historico.status).toBe(200);
+    expect(historico.body.historico.length).toBeGreaterThanOrEqual(2);
+    expect(historico.body.historico.at(-1)?.paraStatus).toBe('VALIDADA');
   });
 });

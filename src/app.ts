@@ -5,6 +5,7 @@ import { actualizarPerfilHandler, criarUtilizadorHandler, listarUtilizadoresHand
 import { actualizarContaHandler, alterarSenhaHandler, loginHandler } from './auth';
 import { actualizarConfiguracaoHandler, obterConfiguracaoHandler } from './configuracao';
 import {
+  historicoOcorrenciaHandler,
   listarOcorrenciasHandler,
   registrarOcorrenciaHandler,
   validarTecnicoHandler,
@@ -45,6 +46,7 @@ export function criarApp() {
   app.patch('/api/conta', actualizarContaHandler);
   app.get('/api/ocorrencias', listarOcorrenciasHandler);
   app.post('/api/ocorrencias', registrarOcorrenciaHandler);
+  app.get('/api/ocorrencias/:id/historico', historicoOcorrenciaHandler);
   app.post('/api/diagnostico', express.raw({ type: 'image/jpeg', limit: '2mb' }), diagnosticoHandler);
   app.post(
     '/api/ocorrencias/:id/imagens',

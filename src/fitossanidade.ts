@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { identificarPedido } from './auth';
 import {
   criarOcorrencia,
+  listarHistoricoOcorrencia,
   listarOcorrencias,
   marcarValidada,
   obterOcorrencia,
@@ -13,7 +14,7 @@ import {
 import { existeReferencia, rotuloReferencia } from './biblioteca-referencias';
 import { obterLimiarTriagem, reporConfiguracao } from './configuracao';
 import { reporImagens } from './imagens';
-import { podeRegistarOcorrencia, podeValidar } from './perfis';
+import { podeRegistarOcorrencia, podeValidar, podeVerTodasOcorrencias } from './perfis';
 import type {
   CamposOcorrencia,
   EstadoOcorrencia,
@@ -21,6 +22,9 @@ import type {
   ResultadoTriagem,
   Severidade,
 } from './tipos';
+
+const NOTA_VALIDACAO_MIN = 3;
+const NOTA_VALIDACAO_MAX = 500;
 
 export function reporEstado(): void {
   reporBase();
@@ -196,6 +200,8 @@ export async function registrarOcorrenciaHandler(req: Request, res: Response): P
     referenciaRotulo: referenciaId ? rotuloReferencia(referenciaId) : null,
     severidade,
     validadaEm: null,
+    notaValidacao: null,
+    validadaPor: null,
   };
   try {
     await criarOcorrencia(ocorrencia);
@@ -227,6 +233,13 @@ export async function listarOcorrenciasHandler(req: Request, res: Response): Pro
   }
 }
 
+function lerNotaValidacao(valor: unknown): string | null {
+  if (typeof valor !== 'string') return null;
+  const nota = valor.trim();
+  if (nota.length < NOTA_VALIDACAO_MIN || nota.length > NOTA_VALIDACAO_MAX) return null;
+  return nota;
+}
+
 export async function validarTecnicoHandler(req: Request, res: Response): Promise<void> {
   const autorizacao = req.headers.authorization;
   if (typeof autorizacao === 'string' && autorizacao.startsWith('Bearer ') && !identificarPedido(req)) {
@@ -237,6 +250,14 @@ export async function validarTecnicoHandler(req: Request, res: Response): Promis
   const identidade = identificarPedido(req);
   if (!identidade || !podeValidar(identidade.perfil)) {
     res.status(403).json({ erro: 'Acesso negado: Requer perfil TECNICO' });
+    return;
+  }
+
+  const nota = lerNotaValidacao(req.body?.nota);
+  if (!nota) {
+    res.status(400).json({
+      erro: `A nota de validação é obrigatória (${NOTA_VALIDACAO_MIN} a ${NOTA_VALIDACAO_MAX} caracteres)`,
+    });
     return;
   }
 
@@ -261,16 +282,58 @@ export async function validarTecnicoHandler(req: Request, res: Response): Promis
 
   if (alvo) {
     try {
-      await marcarValidada(alvo.id);
+      const actualizada = await marcarValidada(alvo.id, {
+        nota,
+        validadaPor: identidade.email,
+      });
+      alvo = actualizada ?? {
+        ...alvo,
+        status: 'VALIDADA' as const,
+        validadaEm: new Date().toISOString(),
+        notaValidacao: nota,
+        validadaPor: identidade.email,
+      };
     } catch {
       res.status(500).json({ erro: 'Erro interno' });
       return;
     }
-    alvo = { ...alvo, status: 'VALIDADA', validadaEm: new Date().toISOString() };
   }
 
   res.status(200).json({
     status: 'VALIDADA' as const,
     ocorrencia: alvo,
   });
+}
+
+export async function historicoOcorrenciaHandler(req: Request, res: Response): Promise<void> {
+  const identidade = identificarPedido(req);
+  if (!identidade) {
+    res.status(401).json({ erro: 'Autenticação necessária' });
+    return;
+  }
+
+  const id = typeof req.params.id === 'string' ? req.params.id : '';
+  if (!id) {
+    res.status(400).json({ erro: 'Identificador inválido' });
+    return;
+  }
+
+  try {
+    const ocorrencia = await obterOcorrencia(id);
+    if (!ocorrencia) {
+      res.status(404).json({ erro: 'Ocorrência não encontrada' });
+      return;
+    }
+    const podeVer =
+      podeVerTodasOcorrencias(identidade.perfil) ||
+      (identidade.email !== null && ocorrencia.autorEmail === identidade.email);
+    if (!podeVer) {
+      res.status(403).json({ erro: 'Acesso negado' });
+      return;
+    }
+    const historico = await listarHistoricoOcorrencia(id);
+    res.status(200).json({ historico });
+  } catch {
+    res.status(500).json({ erro: 'Erro interno' });
+  }
 }

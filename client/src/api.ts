@@ -4,6 +4,16 @@ import type { Sessao } from './sessao';
 export type { Perfil };
 export type Severidade = 1 | 2 | 3 | 4 | 5;
 
+export interface EventoOcorrencia {
+  id: string;
+  ocorrenciaId: string;
+  deStatus: 'TRIADA' | 'ENCAMINHADA' | 'VALIDADA' | null;
+  paraStatus: 'TRIADA' | 'ENCAMINHADA' | 'VALIDADA';
+  actorEmail: string | null;
+  nota: string | null;
+  criadoEm: string;
+}
+
 export interface Ocorrencia {
   id: string;
   cultura: string;
@@ -21,6 +31,8 @@ export interface Ocorrencia {
   referenciaRotulo: string | null;
   severidade: Severidade | null;
   validadaEm: string | null;
+  notaValidacao: string | null;
+  validadaPor: string | null;
 }
 
 export class ErroApi extends Error {
@@ -269,9 +281,13 @@ export async function enviarImagem(token: string, id: string, blob: Blob) {
   return dados.nome;
 }
 
-export function validarOcorrencia(token: string, id: string) {
+export function validarOcorrencia(token: string, id: string, nota: string) {
   return pedido<{ status: 'VALIDADA'; ocorrencia: Ocorrencia | undefined }>('/api/validacoes', {
     method: 'POST',
-    body: JSON.stringify({ id }),
+    body: JSON.stringify({ id, nota }),
   }, token);
+}
+
+export function obterHistoricoOcorrencia(token: string, id: string) {
+  return pedido<{ historico: EventoOcorrencia[] }>(`/api/ocorrencias/${id}/historico`, {}, token);
 }

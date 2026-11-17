@@ -1,5 +1,6 @@
 import { memo, useEffect, useState, type ReactNode } from 'react';
 import { obterImagem, urlDaImagem, type Ocorrencia } from './api';
+import { HistoricoOcorrencia } from './historico-ocorrencia';
 
 const ROTULOS_SINTOMA: Record<string, string> = {
   manchas_amarelas: 'Manchas amarelas',
@@ -157,6 +158,7 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
   acao?: ReactNode;
   variante?: 'completo' | 'fila';
 }) {
+  const [mostrarHistorico, setMostrarHistorico] = useState(false);
   const quando = formatarData(ocorrencia.criadaEm);
   const fotos = ocorrencia.imagens ?? [];
   const mapa = ligaMapa(ocorrencia.latitude, ocorrencia.longitude);
@@ -221,6 +223,14 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
               </dd>
             </div>
           ) : null}
+          {ocorrencia.validadaPor ? (
+            <div>
+              <dt>Técnico</dt>
+              <dd className="quebrar" translate="no">
+                {ocorrencia.validadaPor}
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt>Confiança</dt>
             <dd className="numero">{PERCENTAGEM.format(ocorrencia.confianca)}&nbsp;%</dd>
@@ -263,6 +273,11 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
             </div>
           ) : null}
         </dl>
+        {ocorrencia.notaValidacao ? (
+          <blockquote className="item-nota-validacao">
+            <p>{ocorrencia.notaValidacao}</p>
+          </blockquote>
+        ) : null}
         <div className="item-confianca">
           <div
             className="progresso"
@@ -276,6 +291,21 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
           </div>
         </div>
         {fila ? null : <p className="item-dica">{RECOMENDACAO[ocorrencia.status]}</p>}
+        <div className="item-historico-accoes">
+          <button
+            type="button"
+            className="secundario item-historico-botao"
+            aria-expanded={mostrarHistorico}
+            onClick={() => setMostrarHistorico((atual) => !atual)}
+          >
+            {mostrarHistorico ? 'Ocultar histórico' : 'Ver histórico'}
+          </button>
+        </div>
+        {mostrarHistorico ? (
+          <div className="item-historico">
+            <HistoricoOcorrencia token={token} ocorrenciaId={ocorrencia.id} />
+          </div>
+        ) : null}
         {acao ? <div className="item-rodape">{acao}</div> : null}
       </div>
     </article>

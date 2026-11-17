@@ -5,7 +5,14 @@ import { Pool, type QueryResultRow } from 'pg';
 import catalogoReferencias from './biblioteca-referencias.dados.json';
 import { CONTAS_INICIAIS, EMAILS_DEMO_REMOVER, type Conta } from './credenciais';
 import { ePerfil, podeVerTodasOcorrencias, type Perfil } from './perfis';
-import type { ContaPublica, Ocorrencia, Parcela, Severidade } from './tipos';
+import type {
+  ContaPublica,
+  EstadoOcorrencia,
+  EventoOcorrencia,
+  Ocorrencia,
+  Parcela,
+  Severidade,
+} from './tipos';
 
 const ESQUEMA = `
 CREATE TABLE IF NOT EXISTS utilizadores (
@@ -46,7 +53,19 @@ CREATE TABLE IF NOT EXISTS ocorrencias (
   parcela_id uuid REFERENCES parcelas(id),
   referencia_id text REFERENCES referencias_entradas(id),
   severidade smallint CHECK (severidade IS NULL OR (severidade BETWEEN 1 AND 5)),
-  validada_em timestamptz
+  validada_em timestamptz,
+  nota_validacao text,
+  validada_por text
+);
+
+CREATE TABLE IF NOT EXISTS ocorrencia_eventos (
+  id uuid PRIMARY KEY,
+  ocorrencia_id uuid NOT NULL REFERENCES ocorrencias(id) ON DELETE CASCADE,
+  de_status text CHECK (de_status IS NULL OR de_status IN ('TRIADA', 'ENCAMINHADA', 'VALIDADA')),
+  para_status text NOT NULL CHECK (para_status IN ('TRIADA', 'ENCAMINHADA', 'VALIDADA')),
+  actor_email text,
+  nota text,
+  criado_em timestamptz NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS referencias_imagens (
@@ -59,10 +78,14 @@ CREATE TABLE IF NOT EXISTS referencias_imagens (
 
 CREATE INDEX IF NOT EXISTS idx_parcelas_autor_nome
   ON parcelas (autor_email, lower(nome));
+
+CREATE INDEX IF NOT EXISTS idx_ocorrencia_eventos_ocorrencia
+  ON ocorrencia_eventos (ocorrencia_id, criado_em ASC);
 `;
 
 const ocorrenciasMemoria: Ocorrencia[] = [];
 const parcelasMemoria: Parcela[] = [];
+const eventosMemoria: EventoOcorrencia[] = [];
 
 function copiarContas(): Conta[] {
   return CONTAS_INICIAIS.map((conta) => ({
@@ -115,6 +138,7 @@ function obterPool(): Pool | null {
 export function reporEstado(): void {
   ocorrenciasMemoria.length = 0;
   parcelasMemoria.length = 0;
+  eventosMemoria.length = 0;
   utilizadoresMemoria = copiarContas();
 }
 
@@ -169,11 +193,33 @@ function mapear(linha: QueryResultRow): Ocorrencia {
       linha.validada_em === null || linha.validada_em === undefined
         ? null
         : new Date(linha.validada_em as string).toISOString(),
+    notaValidacao:
+      linha.nota_validacao === null || linha.nota_validacao === undefined
+        ? null
+        : String(linha.nota_validacao),
+    validadaPor:
+      linha.validada_por === null || linha.validada_por === undefined ? null : String(linha.validada_por),
+  };
+}
+
+function mapearEvento(linha: QueryResultRow): EventoOcorrencia {
+  return {
+    id: String(linha.id),
+    ocorrenciaId: String(linha.ocorrencia_id),
+    deStatus:
+      linha.de_status === null || linha.de_status === undefined
+        ? null
+        : (String(linha.de_status) as EstadoOcorrencia),
+    paraStatus: String(linha.para_status) as EstadoOcorrencia,
+    actorEmail: linha.actor_email === null || linha.actor_email === undefined ? null : String(linha.actor_email),
+    nota: linha.nota === null || linha.nota === undefined ? null : String(linha.nota),
+    criadoEm: new Date(linha.criado_em as string).toISOString(),
   };
 }
 
 const COLUNAS_OCORRENCIA = `o.id, o.cultura, o.sintomas, o.latitude, o.longitude, o.confianca, o.status,
   o.autor_email, o.criada_em, o.imagens, o.parcela_id, o.referencia_id, o.severidade, o.validada_em,
+  o.nota_validacao, o.validada_por,
   p.nome AS parcela_nome, r.rotulo AS referencia_rotulo`;
 
 const FROM_OCORRENCIA = `ocorrencias o
@@ -243,17 +289,80 @@ export async function obterOuCriarParcela(entrada: {
   };
 }
 
+async function registarEvento(entrada: {
+  ocorrenciaId: string;
+  deStatus: EstadoOcorrencia | null;
+  paraStatus: EstadoOcorrencia;
+  actorEmail: string | null;
+  nota: string | null;
+  criadoEm?: string;
+}): Promise<EventoOcorrencia> {
+  const evento: EventoOcorrencia = {
+    id: randomUUID(),
+    ocorrenciaId: entrada.ocorrenciaId,
+    deStatus: entrada.deStatus,
+    paraStatus: entrada.paraStatus,
+    actorEmail: entrada.actorEmail,
+    nota: entrada.nota,
+    criadoEm: entrada.criadoEm ?? new Date().toISOString(),
+  };
+  const ligacao = obterPool();
+  if (!ligacao) {
+    eventosMemoria.push(evento);
+    return evento;
+  }
+  await ligacao.query(
+    `INSERT INTO ocorrencia_eventos (id, ocorrencia_id, de_status, para_status, actor_email, nota, criado_em)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      evento.id,
+      evento.ocorrenciaId,
+      evento.deStatus,
+      evento.paraStatus,
+      evento.actorEmail,
+      evento.nota,
+      evento.criadoEm,
+    ],
+  );
+  return evento;
+}
+
+export async function listarHistoricoOcorrencia(ocorrenciaId: string): Promise<EventoOcorrencia[]> {
+  const ligacao = obterPool();
+  if (!ligacao) {
+    return eventosMemoria
+      .filter((item) => item.ocorrenciaId === ocorrenciaId)
+      .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
+  }
+  const resultado = await ligacao.query(
+    `SELECT id, ocorrencia_id, de_status, para_status, actor_email, nota, criado_em
+     FROM ocorrencia_eventos
+     WHERE ocorrencia_id = $1
+     ORDER BY criado_em ASC`,
+    [ocorrenciaId],
+  );
+  return resultado.rows.map(mapearEvento);
+}
+
 export async function criarOcorrencia(ocorrencia: Ocorrencia): Promise<void> {
   const ligacao = obterPool();
   if (!ligacao) {
     ocorrenciasMemoria.push(ocorrencia);
+    await registarEvento({
+      ocorrenciaId: ocorrencia.id,
+      deStatus: null,
+      paraStatus: ocorrencia.status,
+      actorEmail: ocorrencia.autorEmail,
+      nota: null,
+      criadoEm: ocorrencia.criadaEm,
+    });
     return;
   }
   await ligacao.query(
     `INSERT INTO ocorrencias (
       id, cultura, sintomas, latitude, longitude, confianca, status, autor_email, criada_em, imagens,
-      parcela_id, referencia_id, severidade, validada_em
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      parcela_id, referencia_id, severidade, validada_em, nota_validacao, validada_por
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
     [
       ocorrencia.id,
       ocorrencia.cultura,
@@ -269,8 +378,18 @@ export async function criarOcorrencia(ocorrencia: Ocorrencia): Promise<void> {
       ocorrencia.referenciaId,
       ocorrencia.severidade,
       ocorrencia.validadaEm,
+      ocorrencia.notaValidacao,
+      ocorrencia.validadaPor,
     ],
   );
+  await registarEvento({
+    ocorrenciaId: ocorrencia.id,
+    deStatus: null,
+    paraStatus: ocorrencia.status,
+    actorEmail: ocorrencia.autorEmail,
+    nota: null,
+    criadoEm: ocorrencia.criadaEm,
+  });
 }
 
 export async function listarOcorrencias(perfil: Perfil, email: string | null): Promise<Ocorrencia[]> {
@@ -326,21 +445,46 @@ export async function acrescentarImagem(id: string, nome: string): Promise<void>
   await ligacao.query(`UPDATE ocorrencias SET imagens = imagens || ARRAY[$2]::text[] WHERE id = $1`, [id, nome]);
 }
 
-export async function marcarValidada(id: string): Promise<void> {
+export async function marcarValidada(
+  id: string,
+  opcoes: { nota: string; validadaPor: string | null },
+): Promise<Ocorrencia | undefined> {
   const agora = new Date().toISOString();
+  const nota = opcoes.nota.trim();
   const ligacao = obterPool();
   if (!ligacao) {
     const alvo = ocorrenciasMemoria.find((item) => item.id === id);
-    if (alvo) {
-      alvo.status = 'VALIDADA';
-      alvo.validadaEm = agora;
-    }
-    return;
+    if (!alvo) return undefined;
+    const deStatus = alvo.status;
+    alvo.status = 'VALIDADA';
+    alvo.validadaEm = agora;
+    alvo.notaValidacao = nota;
+    alvo.validadaPor = opcoes.validadaPor;
+    await registarEvento({
+      ocorrenciaId: id,
+      deStatus,
+      paraStatus: 'VALIDADA',
+      actorEmail: opcoes.validadaPor,
+      nota,
+      criadoEm: agora,
+    });
+    return { ...alvo };
   }
-  await ligacao.query(`UPDATE ocorrencias SET status = 'VALIDADA', validada_em = $2 WHERE id = $1`, [
-    id,
-    agora,
-  ]);
+  await ligacao.query(
+    `UPDATE ocorrencias
+     SET status = 'VALIDADA', validada_em = $2, nota_validacao = $3, validada_por = $4
+     WHERE id = $1`,
+    [id, agora, nota, opcoes.validadaPor],
+  );
+  await registarEvento({
+    ocorrenciaId: id,
+    deStatus: 'ENCAMINHADA',
+    paraStatus: 'VALIDADA',
+    actorEmail: opcoes.validadaPor,
+    nota,
+    criadoEm: agora,
+  });
+  return obterOcorrencia(id);
 }
 
 export async function listarUtilizadores(): Promise<ContaPublica[]> {
@@ -573,6 +717,21 @@ export async function prepararBase(): Promise<void> {
   await ligacao.query(`ALTER TABLE ocorrencias ADD COLUMN IF NOT EXISTS referencia_id text`);
   await ligacao.query(`ALTER TABLE ocorrencias ADD COLUMN IF NOT EXISTS severidade smallint`);
   await ligacao.query(`ALTER TABLE ocorrencias ADD COLUMN IF NOT EXISTS validada_em timestamptz`);
+  await ligacao.query(`ALTER TABLE ocorrencias ADD COLUMN IF NOT EXISTS nota_validacao text`);
+  await ligacao.query(`ALTER TABLE ocorrencias ADD COLUMN IF NOT EXISTS validada_por text`);
+  await ligacao.query(`
+    CREATE TABLE IF NOT EXISTS ocorrencia_eventos (
+      id uuid PRIMARY KEY,
+      ocorrencia_id uuid NOT NULL REFERENCES ocorrencias(id) ON DELETE CASCADE,
+      de_status text CHECK (de_status IS NULL OR de_status IN ('TRIADA', 'ENCAMINHADA', 'VALIDADA')),
+      para_status text NOT NULL CHECK (para_status IN ('TRIADA', 'ENCAMINHADA', 'VALIDADA')),
+      actor_email text,
+      nota text,
+      criado_em timestamptz NOT NULL
+    )`);
+  await ligacao.query(
+    `CREATE INDEX IF NOT EXISTS idx_ocorrencia_eventos_ocorrencia ON ocorrencia_eventos (ocorrencia_id, criado_em ASC)`,
+  );
   await ligacao.query(`ALTER TABLE utilizadores ADD COLUMN IF NOT EXISTS nome text NOT NULL DEFAULT ''`);
   await ligacao.query(`ALTER TABLE utilizadores ADD COLUMN IF NOT EXISTS organizacao text`);
   await ligacao.query(`ALTER TABLE utilizadores DROP CONSTRAINT IF EXISTS utilizadores_perfil_check`);

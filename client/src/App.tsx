@@ -150,11 +150,9 @@ export function App() {
     setOcorrencias((atual) => [...atual, ocorrencia]);
   }, []);
 
-  const validar = useCallback((id: string) => {
+  const validar = useCallback((ocorrencia: Ocorrencia) => {
     setOcorrencias((atual) =>
-      atual.map((item) =>
-        item.id === id ? { ...item, status: 'VALIDADA', validadaEm: new Date().toISOString() } : item,
-      ),
+      atual.map((item) => (item.id === ocorrencia.id ? { ...item, ...ocorrencia, status: 'VALIDADA' } : item)),
     );
   }, []);
 

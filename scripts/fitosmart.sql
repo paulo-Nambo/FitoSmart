@@ -57,7 +57,19 @@ CREATE TABLE IF NOT EXISTS ocorrencias (
   parcela_id uuid REFERENCES parcelas(id),
   referencia_id text REFERENCES referencias_entradas(id),
   severidade smallint CHECK (severidade IS NULL OR (severidade BETWEEN 1 AND 5)),
-  validada_em timestamptz
+  validada_em timestamptz,
+  nota_validacao text,
+  validada_por text
+);
+
+CREATE TABLE IF NOT EXISTS ocorrencia_eventos (
+  id uuid PRIMARY KEY,
+  ocorrencia_id uuid NOT NULL REFERENCES ocorrencias(id) ON DELETE CASCADE,
+  de_status text CHECK (de_status IS NULL OR de_status IN ('TRIADA', 'ENCAMINHADA', 'VALIDADA')),
+  para_status text NOT NULL CHECK (para_status IN ('TRIADA', 'ENCAMINHADA', 'VALIDADA')),
+  actor_email text,
+  nota text,
+  criado_em timestamptz NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS referencias_imagens (
@@ -78,6 +90,10 @@ ALTER TABLE ocorrencias
   ADD COLUMN IF NOT EXISTS severidade smallint;
 ALTER TABLE ocorrencias
   ADD COLUMN IF NOT EXISTS validada_em timestamptz;
+ALTER TABLE ocorrencias
+  ADD COLUMN IF NOT EXISTS nota_validacao text;
+ALTER TABLE ocorrencias
+  ADD COLUMN IF NOT EXISTS validada_por text;
 ALTER TABLE utilizadores
   ADD COLUMN IF NOT EXISTS nome text NOT NULL DEFAULT '';
 ALTER TABLE utilizadores
@@ -98,6 +114,9 @@ CREATE INDEX IF NOT EXISTS idx_ocorrencias_parcela
 
 CREATE INDEX IF NOT EXISTS idx_ocorrencias_referencia
   ON ocorrencias (referencia_id);
+
+CREATE INDEX IF NOT EXISTS idx_ocorrencia_eventos_ocorrencia
+  ON ocorrencia_eventos (ocorrencia_id, criado_em ASC);
 
 CREATE INDEX IF NOT EXISTS idx_parcelas_autor_nome
   ON parcelas (autor_email, lower(nome));

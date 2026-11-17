@@ -1,8 +1,10 @@
-import { memo, useCallback, useEffect, useImperativeHandle, useRef, useState, type FormEvent, type Ref } from 'react';
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type FormEvent, type Ref } from 'react';
 import { enviarImagem, registarOcorrencia, type Diagnostico, type Ocorrencia, type Severidade } from './api';
 import { CampoImagens, type CampoImagensHandle } from './campo-imagens';
 import { CartaoOcorrencia, rotuloSeveridade, rotuloSintoma } from './cartao-ocorrencia';
 import type { MenuId } from './barra-lateral';
+import { exportarOcorrenciasCsv } from './exportar-csv';
+import { filtrarPesquisa } from './filtrar-pesquisa';
 import {
   BarraFiltro,
   contarEstados,
@@ -13,6 +15,7 @@ import {
   useFiltroEstado,
 } from './filtro-estado';
 import { PainelEstatisticas } from './painel-estatisticas';
+import { VistaMapaOcorrencias } from './vista-mapa-ocorrencias';
 
 const CULTURAS = ['Milho', 'Mandioca', 'Feijão', 'Tomate'] as const;
 const FICHA_BASE = ['manchas_amarelas', 'folhas_secas'] as const;
@@ -53,7 +56,10 @@ const ListaOcorrencias = memo(function ListaOcorrencias({
   ocorrencias: Ocorrencia[];
 }) {
   const { filtro, escolher } = useFiltroEstado();
-  const visiveis = filtrarEstado(porDataRecente(ocorrencias), filtro);
+  const [pesquisa, setPesquisa] = useState('');
+  const [vista, setVista] = useState<'lista' | 'mapa'>('lista');
+  const filtradasEstado = filtrarEstado(porDataRecente(ocorrencias), filtro);
+  const visiveis = useMemo(() => filtrarPesquisa(filtradasEstado, pesquisa), [filtradasEstado, pesquisa]);
   const contagens = contarEstados(ocorrencias);
 
   return (
@@ -65,19 +71,66 @@ const ListaOcorrencias = memo(function ListaOcorrencias({
           </h1>
           <p className="nota lista-total">{rotuloLista(visiveis.length, ocorrencias.length, filtro)}</p>
         </div>
+        <div className="lista-cabeca-accoes">
+          <div className="vista-toggle" role="group" aria-label="Vista das ocorrências">
+            <button
+              type="button"
+              className={vista === 'lista' ? 'vista-toggle-activo' : undefined}
+              aria-pressed={vista === 'lista'}
+              onClick={() => setVista('lista')}
+            >
+              Lista
+            </button>
+            <button
+              type="button"
+              className={vista === 'mapa' ? 'vista-toggle-activo' : undefined}
+              aria-pressed={vista === 'mapa'}
+              onClick={() => setVista('mapa')}
+            >
+              Mapa
+            </button>
+          </div>
+          <button
+            type="button"
+            className="secundario"
+            disabled={visiveis.length === 0}
+            onClick={() => exportarOcorrenciasCsv(visiveis)}
+          >
+            Exportar CSV
+          </button>
+        </div>
       </header>
-      <div className="lista-ferramentas">
+      <div className="lista-ferramentas lista-ferramentas-ext">
+        <label className="lista-pesquisa">
+          <span className="sr-only">Pesquisar ocorrências</span>
+          <input
+            type="search"
+            value={pesquisa}
+            onChange={(evento) => setPesquisa(evento.target.value)}
+            placeholder="Pesquisar cultura, parcela, sintoma…"
+            autoComplete="off"
+          />
+        </label>
         <BarraFiltro filtro={filtro} aoEscolher={escolher} contagens={contagens} />
       </div>
       {visiveis.length === 0 ? (
         <div className="lista-vazia-caixa">
-          <p>{mensagemVazia(filtro)}</p>
-          {filtro !== 'todas' ? (
-            <button type="button" className="secundario" onClick={() => escolher('todas')}>
-              Ver todas
+          <p>{pesquisa.trim() ? 'Nenhuma ocorrência corresponde à pesquisa.' : mensagemVazia(filtro)}</p>
+          {filtro !== 'todas' || pesquisa.trim() ? (
+            <button
+              type="button"
+              className="secundario"
+              onClick={() => {
+                escolher('todas');
+                setPesquisa('');
+              }}
+            >
+              Limpar filtros
             </button>
           ) : null}
         </div>
+      ) : vista === 'mapa' ? (
+        <VistaMapaOcorrencias ocorrencias={visiveis} />
       ) : (
         <ul className="lista-ocorrencias">
           {visiveis.map((item) => (

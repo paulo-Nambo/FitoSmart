@@ -24,6 +24,16 @@ export interface Parcela {
   criadaEm: string;
 }
 
+export interface EventoOcorrencia {
+  id: string;
+  ocorrenciaId: string;
+  deStatus: EstadoOcorrencia | null;
+  paraStatus: EstadoOcorrencia;
+  actorEmail: string | null;
+  nota: string | null;
+  criadoEm: string;
+}
+
 export interface Ocorrencia {
   id: string;
   cultura: string;
@@ -41,6 +51,8 @@ export interface Ocorrencia {
   referenciaRotulo: string | null;
   severidade: Severidade | null;
   validadaEm: string | null;
+  notaValidacao: string | null;
+  validadaPor: string | null;
 }
 
 export interface CamposOcorrencia {

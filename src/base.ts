@@ -95,7 +95,16 @@ function obterPool(): Pool | null {
   const url = urlDaBase();
   if (!url) return null;
   if (!pool) {
-    pool = new Pool({ connectionString: url, max: 10 });
+    // Render Postgres exige TLS; em local o URL costuma ser sem SSL.
+    const precisaSsl =
+      process.env.PGSSLMODE === 'require' ||
+      /render\.com|sslmode=require/i.test(url) ||
+      process.env.NODE_ENV === 'production';
+    pool = new Pool({
+      connectionString: url,
+      max: 10,
+      ssl: precisaSsl ? { rejectUnauthorized: false } : undefined,
+    });
     pool.on('error', () => {
       console.error('Ligação PostgreSQL interrompida');
     });

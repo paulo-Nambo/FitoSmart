@@ -49,10 +49,12 @@ O ficheiro [`render.yaml`](render.yaml) define um **Web Service** e uma **Postgr
 
 Variáveis definidas pelo Blueprint: `DATABASE_URL`, `JWT_SECRET` (gerado), `NODE_ENV=production`. Não defina `OLLAMA_HOST` no Render.
 
+Se o build falhar com `tsc`/`vite` em falta, o comando tem de ser `npm ci --include=dev && npm run build` (já está no `render.yaml`). Depois do push, use **Manual sync** no Blueprint.
+
 ### Manual (sem Blueprint)
 
 1. **New → PostgreSQL** → plano Free → copie a **Internal Database URL**.
-2. **New → Web Service** → repo → Build `npm ci && npm run build` → Start `npm start` → plano Free.
+2. **New → Web Service** → repo → Build `npm ci --include=dev && npm run build` → Start `npm start` → plano Free.
 3. Environment: `DATABASE_URL`, `JWT_SECRET` (longo e aleatório), `NODE_ENV=production`, `NODE_VERSION=20`.
 
 ## Regras cobertas pelos 10 testes

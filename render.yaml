@@ -14,7 +14,8 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm ci && npm run build
+    # --include=dev: NODE_ENV=production faria o npm ci saltar typescript/vite.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/saude
     envVars:
@@ -29,3 +30,4 @@ services:
           name: fitosmart-db
           property: connectionString
       # Sem OLLAMA_HOST / GEMINI_API_KEY → diagnóstico via OpenEPI + fallback local.
+

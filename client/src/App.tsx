@@ -243,6 +243,7 @@ export function App() {
               ocorrencias={ocorrencias}
               ocorrenciaInicial={ocorrenciaApoio}
               aoVerOcorrencia={verOcorrencia}
+              aoIrNovaOcorrencia={() => escolherMenu('nova')}
             />
           ) : (
             <EcraOcorrencia

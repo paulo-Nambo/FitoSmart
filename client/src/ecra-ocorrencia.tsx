@@ -657,7 +657,6 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
     <form className="cartao form-ocorrencia" onSubmit={submeter} autoComplete="off" noValidate>
       <header className="form-cabeca">
         <h1 className="titulo">Nova ocorrência</h1>
-        <p className="nota">Cultura e severidade, fotografia da planta e, se precisar, sintomas manuais.</p>
       </header>
 
       <fieldset className="form-bloco">

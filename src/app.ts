@@ -4,6 +4,13 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { actualizarPerfilHandler, criarUtilizadorHandler, listarUtilizadoresHandler } from './acesso';
+import {
+  actualizarPedidoHandler,
+  criarPedidoHandler,
+  listarPedidosHandler,
+  obterPedidoHandler,
+  responderPedidoHandler,
+} from './apoio';
 import { actualizarContaHandler, alterarSenhaHandler, loginHandler } from './auth';
 import { actualizarConfiguracaoHandler, obterConfiguracaoHandler } from './configuracao';
 import {
@@ -91,6 +98,7 @@ export function criarApp() {
   const limiteUploadImagem = limitePedidos(20, janela15m);
   const limiteServirImagem = limitePedidos(120, janela15m);
   const limiteReferencias = limitePedidos(200, janela15m);
+  const limitePedidosApoio = limitePedidos(60, janela15m);
 
   // Tecto geral por IP em toda a API (rotas sensíveis têm limites mais baixos abaixo).
   app.use('/api', limiteGlobalApi);
@@ -123,6 +131,11 @@ export function criarApp() {
   app.patch('/api/utilizadores/:email', actualizarPerfilHandler);
   app.get('/api/configuracao', obterConfiguracaoHandler);
   app.patch('/api/configuracao', actualizarConfiguracaoHandler);
+  app.get('/api/pedidos', listarPedidosHandler);
+  app.post('/api/pedidos', limitePedidosApoio, criarPedidoHandler);
+  app.get('/api/pedidos/:id', obterPedidoHandler);
+  app.post('/api/pedidos/:id/mensagens', limitePedidosApoio, responderPedidoHandler);
+  app.patch('/api/pedidos/:id', actualizarPedidoHandler);
 
   // Com DATABASE_URL: imagens vêm da BD; sem BD (ou miss): ficheiros em public/.
   app.get('/referencias/:entradaId/:nome', limiteReferencias, servirReferenciaHandler);

@@ -4,13 +4,16 @@ import path from 'path';
 import { Pool, type QueryResultRow } from 'pg';
 import catalogoReferencias from './biblioteca-referencias.dados.json';
 import { CONTAS_INICIAIS, EMAILS_DEMO_REMOVER, type Conta } from './credenciais';
-import { ePerfil, podeVerTodasOcorrencias, type Perfil } from './perfis';
+import { ePerfil, podeVerTodasOcorrencias, podeVerTodosPedidosApoio, type Perfil } from './perfis';
 import type {
   ContaPublica,
   EstadoOcorrencia,
+  EstadoPedidoApoio,
   EventoOcorrencia,
+  MensagemApoio,
   Ocorrencia,
   Parcela,
+  PedidoApoio,
   Severidade,
 } from './tipos';
 
@@ -81,11 +84,41 @@ CREATE INDEX IF NOT EXISTS idx_parcelas_autor_nome
 
 CREATE INDEX IF NOT EXISTS idx_ocorrencia_eventos_ocorrencia
   ON ocorrencia_eventos (ocorrencia_id, criado_em ASC);
+
+CREATE TABLE IF NOT EXISTS pedidos_apoio (
+  id uuid PRIMARY KEY,
+  assunto text NOT NULL,
+  estado text NOT NULL CHECK (estado IN ('ABERTO', 'EM_ATENDIMENTO', 'ENCERRADO')),
+  autor_email text NOT NULL,
+  tecnico_email text,
+  ocorrencia_id uuid REFERENCES ocorrencias(id) ON DELETE SET NULL,
+  criado_em timestamptz NOT NULL,
+  actualizado_em timestamptz NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pedido_mensagens (
+  id uuid PRIMARY KEY,
+  pedido_id uuid NOT NULL REFERENCES pedidos_apoio(id) ON DELETE CASCADE,
+  autor_email text NOT NULL,
+  corpo text NOT NULL,
+  criado_em timestamptz NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pedidos_apoio_autor
+  ON pedidos_apoio (autor_email, actualizado_em DESC);
+
+CREATE INDEX IF NOT EXISTS idx_pedidos_apoio_estado
+  ON pedidos_apoio (estado, actualizado_em DESC);
+
+CREATE INDEX IF NOT EXISTS idx_pedido_mensagens_pedido
+  ON pedido_mensagens (pedido_id, criado_em ASC);
 `;
 
 const ocorrenciasMemoria: Ocorrencia[] = [];
 const parcelasMemoria: Parcela[] = [];
 const eventosMemoria: EventoOcorrencia[] = [];
+const pedidosMemoria: PedidoApoio[] = [];
+const mensagensApoioMemoria: MensagemApoio[] = [];
 
 function copiarContas(): Conta[] {
   return CONTAS_INICIAIS.map((conta) => ({
@@ -139,7 +172,33 @@ export function reporEstado(): void {
   ocorrenciasMemoria.length = 0;
   parcelasMemoria.length = 0;
   eventosMemoria.length = 0;
+  pedidosMemoria.length = 0;
+  mensagensApoioMemoria.length = 0;
   utilizadoresMemoria = copiarContas();
+}
+
+function mapearPedido(linha: QueryResultRow): PedidoApoio {
+  return {
+    id: String(linha.id),
+    assunto: String(linha.assunto),
+    estado: String(linha.estado) as EstadoPedidoApoio,
+    autorEmail: String(linha.autor_email),
+    tecnicoEmail: linha.tecnico_email == null ? null : String(linha.tecnico_email),
+    ocorrenciaId: linha.ocorrencia_id == null ? null : String(linha.ocorrencia_id),
+    criadoEm: new Date(linha.criado_em as string | Date).toISOString(),
+    actualizadoEm: new Date(linha.actualizado_em as string | Date).toISOString(),
+    preview: linha.preview == null ? null : String(linha.preview),
+  };
+}
+
+function mapearMensagemApoio(linha: QueryResultRow): MensagemApoio {
+  return {
+    id: String(linha.id),
+    pedidoId: String(linha.pedido_id),
+    autorEmail: String(linha.autor_email),
+    corpo: String(linha.corpo),
+    criadoEm: new Date(linha.criado_em as string | Date).toISOString(),
+  };
 }
 
 function mapearContaPublica(linha: {
@@ -706,6 +765,199 @@ export async function lerImagemReferencia(
   };
 }
 
+export async function criarPedidoApoio(entrada: {
+  assunto: string;
+  autorEmail: string;
+  ocorrenciaId: string | null;
+  mensagem: string;
+}): Promise<PedidoApoio> {
+  const agora = new Date().toISOString();
+  const pedidoId = randomUUID();
+  const mensagemId = randomUUID();
+  const pedido: PedidoApoio = {
+    id: pedidoId,
+    assunto: entrada.assunto,
+    estado: 'ABERTO',
+    autorEmail: entrada.autorEmail,
+    tecnicoEmail: null,
+    ocorrenciaId: entrada.ocorrenciaId,
+    criadoEm: agora,
+    actualizadoEm: agora,
+    preview: entrada.mensagem,
+  };
+  const mensagem: MensagemApoio = {
+    id: mensagemId,
+    pedidoId,
+    autorEmail: entrada.autorEmail,
+    corpo: entrada.mensagem,
+    criadoEm: agora,
+  };
+
+  const ligacao = obterPool();
+  if (!ligacao) {
+    pedidosMemoria.push(pedido);
+    mensagensApoioMemoria.push(mensagem);
+    return { ...pedido, mensagens: [mensagem] };
+  }
+
+  await ligacao.query(
+    `INSERT INTO pedidos_apoio
+      (id, assunto, estado, autor_email, tecnico_email, ocorrencia_id, criado_em, actualizado_em)
+     VALUES ($1, $2, 'ABERTO', $3, NULL, $4, $5, $5)`,
+    [pedidoId, entrada.assunto, entrada.autorEmail, entrada.ocorrenciaId, agora],
+  );
+  await ligacao.query(
+    `INSERT INTO pedido_mensagens (id, pedido_id, autor_email, corpo, criado_em)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [mensagemId, pedidoId, entrada.autorEmail, entrada.mensagem, agora],
+  );
+  return { ...pedido, mensagens: [mensagem] };
+}
+
+export async function listarPedidosApoio(perfil: Perfil, email: string | null): Promise<PedidoApoio[]> {
+  const verTodos = podeVerTodosPedidosApoio(perfil);
+  const ligacao = obterPool();
+  if (!ligacao) {
+    const base = verTodos
+      ? [...pedidosMemoria]
+      : pedidosMemoria.filter((item) => item.autorEmail === email);
+    return base
+      .map((pedido) => {
+        const ultima = [...mensagensApoioMemoria]
+          .filter((mensagem) => mensagem.pedidoId === pedido.id)
+          .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm))
+          .at(-1);
+        return { ...pedido, preview: ultima?.corpo ?? pedido.preview ?? null };
+      })
+      .sort((a, b) => b.actualizadoEm.localeCompare(a.actualizadoEm));
+  }
+
+  const resultado = verTodos
+    ? await ligacao.query(
+        `SELECT p.*, (
+           SELECT m.corpo FROM pedido_mensagens m
+           WHERE m.pedido_id = p.id
+           ORDER BY m.criado_em DESC LIMIT 1
+         ) AS preview
+         FROM pedidos_apoio p
+         ORDER BY p.actualizado_em DESC`,
+      )
+    : await ligacao.query(
+        `SELECT p.*, (
+           SELECT m.corpo FROM pedido_mensagens m
+           WHERE m.pedido_id = p.id
+           ORDER BY m.criado_em DESC LIMIT 1
+         ) AS preview
+         FROM pedidos_apoio p
+         WHERE p.autor_email = $1
+         ORDER BY p.actualizado_em DESC`,
+        [email],
+      );
+  return resultado.rows.map(mapearPedido);
+}
+
+export async function obterPedidoApoio(id: string): Promise<PedidoApoio | null> {
+  const ligacao = obterPool();
+  if (!ligacao) {
+    const pedido = pedidosMemoria.find((item) => item.id === id);
+    if (!pedido) return null;
+    const mensagens = mensagensApoioMemoria
+      .filter((mensagem) => mensagem.pedidoId === id)
+      .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
+    return { ...pedido, mensagens, preview: mensagens.at(-1)?.corpo ?? null };
+  }
+
+  const resultado = await ligacao.query(`SELECT * FROM pedidos_apoio WHERE id = $1`, [id]);
+  const linha = resultado.rows[0];
+  if (!linha) return null;
+  const mensagens = await ligacao.query(
+    `SELECT * FROM pedido_mensagens WHERE pedido_id = $1 ORDER BY criado_em ASC`,
+    [id],
+  );
+  const pedido = mapearPedido(linha);
+  const lista = mensagens.rows.map(mapearMensagemApoio);
+  return { ...pedido, mensagens: lista, preview: lista.at(-1)?.corpo ?? null };
+}
+
+export async function adicionarMensagemApoio(entrada: {
+  pedidoId: string;
+  autorEmail: string;
+  corpo: string;
+  estado?: EstadoPedidoApoio;
+  tecnicoEmail?: string | null;
+}): Promise<PedidoApoio | null> {
+  const agora = new Date().toISOString();
+  const mensagem: MensagemApoio = {
+    id: randomUUID(),
+    pedidoId: entrada.pedidoId,
+    autorEmail: entrada.autorEmail,
+    corpo: entrada.corpo,
+    criadoEm: agora,
+  };
+
+  const ligacao = obterPool();
+  if (!ligacao) {
+    const pedido = pedidosMemoria.find((item) => item.id === entrada.pedidoId);
+    if (!pedido) return null;
+    mensagensApoioMemoria.push(mensagem);
+    pedido.actualizadoEm = agora;
+    if (entrada.estado) pedido.estado = entrada.estado;
+    if (entrada.tecnicoEmail !== undefined) pedido.tecnicoEmail = entrada.tecnicoEmail;
+    pedido.preview = entrada.corpo;
+    const mensagens = mensagensApoioMemoria
+      .filter((item) => item.pedidoId === pedido.id)
+      .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
+    return { ...pedido, mensagens };
+  }
+
+  const actual = await ligacao.query(`SELECT id FROM pedidos_apoio WHERE id = $1`, [entrada.pedidoId]);
+  if (!actual.rows[0]) return null;
+
+  await ligacao.query(
+    `INSERT INTO pedido_mensagens (id, pedido_id, autor_email, corpo, criado_em)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [mensagem.id, entrada.pedidoId, entrada.autorEmail, entrada.corpo, agora],
+  );
+  await ligacao.query(
+    `UPDATE pedidos_apoio
+     SET actualizado_em = $2,
+         estado = COALESCE($3, estado),
+         tecnico_email = COALESCE($4, tecnico_email)
+     WHERE id = $1`,
+    [entrada.pedidoId, agora, entrada.estado ?? null, entrada.tecnicoEmail ?? null],
+  );
+  return obterPedidoApoio(entrada.pedidoId);
+}
+
+export async function actualizarEstadoPedidoApoio(
+  id: string,
+  estado: EstadoPedidoApoio,
+  tecnicoEmail?: string | null,
+): Promise<PedidoApoio | null> {
+  const agora = new Date().toISOString();
+  const ligacao = obterPool();
+  if (!ligacao) {
+    const pedido = pedidosMemoria.find((item) => item.id === id);
+    if (!pedido) return null;
+    pedido.estado = estado;
+    pedido.actualizadoEm = agora;
+    if (tecnicoEmail !== undefined) pedido.tecnicoEmail = tecnicoEmail;
+    return obterPedidoApoio(id);
+  }
+
+  const resultado = await ligacao.query(
+    `UPDATE pedidos_apoio
+     SET estado = $2,
+         actualizado_em = $3,
+         tecnico_email = COALESCE($4, tecnico_email)
+     WHERE id = $1
+     RETURNING id`,
+    [id, estado, agora, tecnicoEmail ?? null],
+  );
+  if (!resultado.rows[0]) return null;
+  return obterPedidoApoio(id);
+}
+
 export async function prepararBase(): Promise<void> {
   const url = urlDaBase();
   if (!url) return;
@@ -732,6 +984,34 @@ export async function prepararBase(): Promise<void> {
     )`);
   await ligacao.query(
     `CREATE INDEX IF NOT EXISTS idx_ocorrencia_eventos_ocorrencia ON ocorrencia_eventos (ocorrencia_id, criado_em ASC)`,
+  );
+  await ligacao.query(`
+    CREATE TABLE IF NOT EXISTS pedidos_apoio (
+      id uuid PRIMARY KEY,
+      assunto text NOT NULL,
+      estado text NOT NULL CHECK (estado IN ('ABERTO', 'EM_ATENDIMENTO', 'ENCERRADO')),
+      autor_email text NOT NULL,
+      tecnico_email text,
+      ocorrencia_id uuid REFERENCES ocorrencias(id) ON DELETE SET NULL,
+      criado_em timestamptz NOT NULL,
+      actualizado_em timestamptz NOT NULL
+    )`);
+  await ligacao.query(`
+    CREATE TABLE IF NOT EXISTS pedido_mensagens (
+      id uuid PRIMARY KEY,
+      pedido_id uuid NOT NULL REFERENCES pedidos_apoio(id) ON DELETE CASCADE,
+      autor_email text NOT NULL,
+      corpo text NOT NULL,
+      criado_em timestamptz NOT NULL
+    )`);
+  await ligacao.query(
+    `CREATE INDEX IF NOT EXISTS idx_pedidos_apoio_autor ON pedidos_apoio (autor_email, actualizado_em DESC)`,
+  );
+  await ligacao.query(
+    `CREATE INDEX IF NOT EXISTS idx_pedidos_apoio_estado ON pedidos_apoio (estado, actualizado_em DESC)`,
+  );
+  await ligacao.query(
+    `CREATE INDEX IF NOT EXISTS idx_pedido_mensagens_pedido ON pedido_mensagens (pedido_id, criado_em ASC)`,
   );
   await ligacao.query(`ALTER TABLE utilizadores ADD COLUMN IF NOT EXISTS nome text NOT NULL DEFAULT ''`);
   await ligacao.query(`ALTER TABLE utilizadores ADD COLUMN IF NOT EXISTS organizacao text`);

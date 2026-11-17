@@ -36,6 +36,10 @@ _Avoid_: Triagem, aprovação genérica
 Resultado de análise de imagem (motor OpenEPI / Ollama / Gemini / fallback local), podendo ligar a uma Referência.
 _Avoid_: Ocorrência, triagem
 
+**Pedido de apoio**:
+Canal de mensagens entre Agricultor e Técnico/Gestor sobre uma Ocorrência concreta, com estados ABERTO → EM_ATENDIMENTO → ENCERRADO. Todo pedido referencia uma Ocorrência.
+_Avoid_: Ticket, chat genérico, issue, suporte IT
+
 **Conta**:
 Credencial de acesso (email + senha) ligada a um Titular e a um Perfil.
 _Avoid_: Utilizador genérico, login, user

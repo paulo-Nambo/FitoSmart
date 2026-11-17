@@ -152,11 +152,18 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
   ocorrencia,
   acao,
   variante = 'completo',
+  destacado = false,
+  pedidosApoio = 0,
+  aoPedirApoio,
 }: {
   token: string;
   ocorrencia: Ocorrencia;
   acao?: ReactNode;
   variante?: 'completo' | 'fila';
+  destacado?: boolean;
+  /** Quantos pedidos de apoio estão ligados a esta ocorrência. */
+  pedidosApoio?: number;
+  aoPedirApoio?: (ocorrenciaId: string) => void;
 }) {
   const [mostrarHistorico, setMostrarHistorico] = useState(false);
   const quando = formatarData(ocorrencia.criadaEm);
@@ -170,12 +177,13 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
     `estado-${ocorrencia.status.toLowerCase()}`,
     comVisual ? 'item-com-foto' : '',
     fila ? 'item-fila' : '',
+    destacado ? 'item-destacado' : '',
   ]
     .filter(Boolean)
     .join(' ');
 
   return (
-    <article className={classes}>
+    <article className={classes} id={destacado ? `ocorrencia-${ocorrencia.id}` : undefined}>
       {fotos.length > 0 ? (
         <GaleriaFotos token={token} id={ocorrencia.id} nomes={fotos} />
       ) : !fila ? (
@@ -193,7 +201,14 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
               <span className="item-parcela quebrar">{ocorrencia.parcelaNome}</span>
             ) : null}
           </div>
-          <span className="selo">{ROTULO_ESTADO[ocorrencia.status]}</span>
+          <div className="item-selos">
+            <span className="selo">{ROTULO_ESTADO[ocorrencia.status]}</span>
+            {pedidosApoio > 0 ? (
+              <span className="selo selo-apoio">
+                {pedidosApoio === 1 ? '1 pedido de apoio' : `${pedidosApoio} pedidos de apoio`}
+              </span>
+            ) : null}
+          </div>
         </header>
         {ocorrencia.sintomas.length > 0 ? (
           <ul className="item-sintomas">
@@ -300,6 +315,15 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
           >
             {mostrarHistorico ? 'Ocultar histórico' : 'Ver histórico'}
           </button>
+          {aoPedirApoio ? (
+            <button
+              type="button"
+              className="secundario item-historico-botao"
+              onClick={() => aoPedirApoio(ocorrencia.id)}
+            >
+              {pedidosApoio > 0 ? 'Abrir pedido de apoio' : 'Pedir apoio ao técnico'}
+            </button>
+          ) : null}
         </div>
         {mostrarHistorico ? (
           <div className="item-historico">

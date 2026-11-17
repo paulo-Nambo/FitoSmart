@@ -66,3 +66,26 @@ export interface ResultadoTriagem {
   confianca: number;
   status: Extract<EstadoOcorrencia, 'TRIADA' | 'ENCAMINHADA'>;
 }
+
+export type EstadoPedidoApoio = 'ABERTO' | 'EM_ATENDIMENTO' | 'ENCERRADO';
+
+export interface MensagemApoio {
+  id: string;
+  pedidoId: string;
+  autorEmail: string;
+  corpo: string;
+  criadoEm: string;
+}
+
+export interface PedidoApoio {
+  id: string;
+  assunto: string;
+  estado: EstadoPedidoApoio;
+  autorEmail: string;
+  tecnicoEmail: string | null;
+  ocorrenciaId: string | null;
+  criadoEm: string;
+  actualizadoEm: string;
+  mensagens?: MensagemApoio[];
+  preview?: string | null;
+}

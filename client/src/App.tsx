@@ -1,10 +1,25 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { listarOcorrencias, type Ocorrencia } from './api';
-import { BarraLateral, eMenuPermitido, lerMenu, urlDoMenu, type MenuId } from './barra-lateral';
+import {
+  BarraLateral,
+  eMenuPermitido,
+  lerMenu,
+  lerParametroUrl,
+  urlDoMenu,
+  type MenuId,
+} from './barra-lateral';
 import { EcraLogin } from './ecra-login';
 import { FormularioPerfil } from './formulario-perfil';
 import { FormularioAlterarSenha } from './formulario-senha';
-import { podeConfigurar, podeGerirContas, podeRegistarOcorrencia, podeValidar, type Perfil } from './perfis';
+import {
+  podeConfigurar,
+  podeCriarPedidoApoio,
+  podeGerirContas,
+  podeRegistarOcorrencia,
+  podeUsarPedidosApoio,
+  podeValidar,
+  type Perfil,
+} from './perfis';
 import { guardarSessao, limparSessao, lerSessao, type Sessao } from './sessao';
 import { useInactividade } from './use-inactividade';
 
@@ -15,12 +30,14 @@ const importarTecnico = () => import('./ecra-tecnico');
 const importarAcesso = () => import('./ecra-acesso');
 const importarConfig = () => import('./ecra-config');
 const importarTempo = () => import('./ecra-tempo');
+const importarApoio = () => import('./ecra-apoio');
 
 const EcraOcorrencia = lazy(() => importarOcorrencia().then((modulo) => ({ default: modulo.EcraOcorrencia })));
 const EcraTecnico = lazy(() => importarTecnico().then((modulo) => ({ default: modulo.EcraTecnico })));
 const EcraAcesso = lazy(() => importarAcesso().then((modulo) => ({ default: modulo.EcraAcesso })));
 const EcraConfig = lazy(() => importarConfig().then((modulo) => ({ default: modulo.EcraConfig })));
 const EcraTempo = lazy(() => importarTempo().then((modulo) => ({ default: modulo.EcraTempo })));
+const EcraApoio = lazy(() => importarApoio().then((modulo) => ({ default: modulo.EcraApoio })));
 
 const RESERVA = <p className="nota">A carregar…</p>;
 
@@ -54,6 +71,7 @@ function preverEcra(perfil: Perfil) {
   if (podeGerirContas(perfil)) void importarAcesso();
   if (podeConfigurar(perfil)) void importarConfig();
   if (podeValidar(perfil)) void importarTecnico();
+  if (podeUsarPedidosApoio(perfil)) void importarApoio();
   if (podeRegistarOcorrencia(perfil) || perfil === 'VISUALIZADOR' || perfil === 'ADMIN_SISTEMA') {
     void importarOcorrencia();
   }
@@ -157,16 +175,33 @@ export function App() {
   }, []);
 
   const escolherMenu = useCallback(
-    (proximo: MenuId) => {
+    (proximo: MenuId, extras?: Record<string, string | null | undefined>) => {
       if (!sessao || !eMenuPermitido(sessao.perfil, proximo)) return;
       setMenu(proximo);
-      const url = urlDoMenu(proximo);
+      const url = urlDoMenu(proximo, extras);
       if (url !== `${window.location.pathname}${window.location.search}`) {
         window.history.pushState(null, '', url);
       }
     },
     [sessao],
   );
+
+  const pedirApoio = useCallback(
+    (ocorrenciaId: string) => {
+      escolherMenu('apoio', { ocorrencia: ocorrenciaId });
+    },
+    [escolherMenu],
+  );
+
+  const verOcorrencia = useCallback(
+    (ocorrenciaId: string) => {
+      escolherMenu('ocorrencias', { destacar: ocorrenciaId });
+    },
+    [escolherMenu],
+  );
+
+  const ocorrenciaApoio = menu === 'apoio' ? lerParametroUrl('ocorrencia') : null;
+  const destacarOcorrencia = menu === 'ocorrencias' ? lerParametroUrl('destacar') : null;
 
   if (sessao === null) {
     return <EcraLogin aoEntrar={setSessao} aoPrever={preverEcra} />;
@@ -200,13 +235,29 @@ export function App() {
             <EcraConfig token={sessao.token} />
           ) : menu === 'fila' && podeValidar(sessao.perfil) ? (
             <EcraTecnico menu={menu} token={sessao.token} ocorrencias={ocorrencias} aoValidar={validar} />
+          ) : menu === 'apoio' && podeUsarPedidosApoio(sessao.perfil) ? (
+            <EcraApoio
+              token={sessao.token}
+              email={sessao.email}
+              perfil={sessao.perfil}
+              ocorrencias={ocorrencias}
+              ocorrenciaInicial={ocorrenciaApoio}
+              aoVerOcorrencia={verOcorrencia}
+            />
           ) : (
             <EcraOcorrencia
-              menu={menu === 'acesso' || menu === 'config' || menu === 'fila' ? 'painel' : menu}
+              menu={
+                menu === 'acesso' || menu === 'config' || menu === 'fila' || menu === 'apoio'
+                  ? 'painel'
+                  : menu
+              }
               token={sessao.token}
               ocorrencias={ocorrencias}
               aoRegistar={registar}
               podeCriar={podeRegistarOcorrencia(sessao.perfil)}
+              podePedirApoio={podeUsarPedidosApoio(sessao.perfil) && podeCriarPedidoApoio(sessao.perfil)}
+              aoPedirApoio={pedirApoio}
+              destacarId={destacarOcorrencia}
             />
           )}
         </Suspense>

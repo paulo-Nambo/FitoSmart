@@ -124,6 +124,34 @@ CREATE INDEX IF NOT EXISTS idx_parcelas_autor_nome
 CREATE INDEX IF NOT EXISTS idx_referencias_imagens_entrada
   ON referencias_imagens (entrada_id);
 
+CREATE TABLE IF NOT EXISTS pedidos_apoio (
+  id uuid PRIMARY KEY,
+  assunto text NOT NULL,
+  estado text NOT NULL CHECK (estado IN ('ABERTO', 'EM_ATENDIMENTO', 'ENCERRADO')),
+  autor_email text NOT NULL,
+  tecnico_email text,
+  ocorrencia_id uuid REFERENCES ocorrencias(id) ON DELETE SET NULL,
+  criado_em timestamptz NOT NULL,
+  actualizado_em timestamptz NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pedido_mensagens (
+  id uuid PRIMARY KEY,
+  pedido_id uuid NOT NULL REFERENCES pedidos_apoio(id) ON DELETE CASCADE,
+  autor_email text NOT NULL,
+  corpo text NOT NULL,
+  criado_em timestamptz NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pedidos_apoio_autor
+  ON pedidos_apoio (autor_email, actualizado_em DESC);
+
+CREATE INDEX IF NOT EXISTS idx_pedidos_apoio_estado
+  ON pedidos_apoio (estado, actualizado_em DESC);
+
+CREATE INDEX IF NOT EXISTS idx_pedido_mensagens_pedido
+  ON pedido_mensagens (pedido_id, criado_em ASC);
+
 -- Remover contas de demonstração antigas
 DELETE FROM utilizadores WHERE email IN (
   'agricultor@uem.mz',

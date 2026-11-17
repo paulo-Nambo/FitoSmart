@@ -203,4 +203,118 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
     expect(historico.body.historico.length).toBeGreaterThanOrEqual(2);
     expect(historico.body.historico.at(-1)?.paraStatus).toBe('VALIDADA');
   });
+
+  test('T14 [Integração]: Pedido de apoio — agricultor cria, técnico responde e isola por autor', async () => {
+    const admin = await request(app)
+      .post('/api/login')
+      .send({ email: CONTA_ADMIN_SISTEMA.email, senha: CONTA_ADMIN_SISTEMA.senha });
+    expect(admin.status).toBe(200);
+
+    const criarAgr = await request(app)
+      .post('/api/utilizadores')
+      .set('Authorization', `Bearer ${admin.body.token}`)
+      .send({
+        email: 'agricultor.apoio@uem.mz',
+        senha: 'FitoSmart1!',
+        perfil: 'AGRICULTOR',
+        nome: 'Agricultor Apoio',
+      });
+    expect(criarAgr.status).toBe(201);
+
+    const criarTec = await request(app)
+      .post('/api/utilizadores')
+      .set('Authorization', `Bearer ${admin.body.token}`)
+      .send({
+        email: 'tecnico.apoio@uem.mz',
+        senha: 'FitoSmart1!',
+        perfil: 'TECNICO',
+        nome: 'Técnico Apoio',
+      });
+    expect(criarTec.status).toBe(201);
+
+    const agr = await request(app)
+      .post('/api/login')
+      .send({ email: 'agricultor.apoio@uem.mz', senha: 'FitoSmart1!' });
+    expect(agr.status).toBe(200);
+
+    const ocorrencia = await request(app)
+      .post('/api/ocorrencias')
+      .set('Authorization', `Bearer ${agr.body.token}`)
+      .send({
+        cultura: 'Milho',
+        sintomas: ['manchas_amarelas'],
+        latitude: -25.7,
+        longitude: 32.6,
+      });
+    expect(ocorrencia.status).toBe(201);
+
+    const semOcorrencia = await request(app)
+      .post('/api/pedidos')
+      .set('Authorization', `Bearer ${agr.body.token}`)
+      .send({
+        assunto: 'Folhas amarelas no milho',
+        mensagem: 'Apareceram manchas após a última chuva. Preciso de orientação.',
+      });
+    expect(semOcorrencia.status).toBe(400);
+
+    const criado = await request(app)
+      .post('/api/pedidos')
+      .set('Authorization', `Bearer ${agr.body.token}`)
+      .send({
+        assunto: 'Folhas amarelas no milho',
+        mensagem: 'Apareceram manchas após a última chuva. Preciso de orientação.',
+        ocorrenciaId: ocorrencia.body.ocorrencia.id,
+      });
+    expect(criado.status).toBe(201);
+    expect(criado.body.pedido.ocorrenciaId).toBe(ocorrencia.body.ocorrencia.id);
+    expect(criado.body.pedido.estado).toBe('ABERTO');
+    expect(criado.body.pedido.mensagens).toHaveLength(1);
+
+    const tec = await request(app)
+      .post('/api/login')
+      .send({ email: 'tecnico.apoio@uem.mz', senha: 'FitoSmart1!' });
+    expect(tec.status).toBe(200);
+
+    const resposta = await request(app)
+      .post(`/api/pedidos/${criado.body.pedido.id}/mensagens`)
+      .set('Authorization', `Bearer ${tec.body.token}`)
+      .send({ mensagem: 'Pode enviar fotografia das folhas afectadas?' });
+    expect(resposta.status).toBe(200);
+    expect(resposta.body.pedido.estado).toBe('EM_ATENDIMENTO');
+    expect(resposta.body.pedido.mensagens.length).toBe(2);
+
+    const encerrar = await request(app)
+      .patch(`/api/pedidos/${criado.body.pedido.id}`)
+      .set('Authorization', `Bearer ${tec.body.token}`)
+      .send({ estado: 'ENCERRADO' });
+    expect(encerrar.status).toBe(200);
+    expect(encerrar.body.pedido.estado).toBe('ENCERRADO');
+
+    const outroAgr = await request(app)
+      .post('/api/utilizadores')
+      .set('Authorization', `Bearer ${admin.body.token}`)
+      .send({
+        email: 'outro.agricultor@uem.mz',
+        senha: 'FitoSmart1!',
+        perfil: 'AGRICULTOR',
+        nome: 'Outro Agricultor',
+      });
+    expect(outroAgr.status).toBe(201);
+
+    const loginOutro = await request(app)
+      .post('/api/login')
+      .send({ email: 'outro.agricultor@uem.mz', senha: 'FitoSmart1!' });
+    expect(loginOutro.status).toBe(200);
+
+    const listaOutro = await request(app)
+      .get('/api/pedidos')
+      .set('Authorization', `Bearer ${loginOutro.body.token}`);
+    expect(listaOutro.status).toBe(200);
+    expect(listaOutro.body.pedidos).toHaveLength(0);
+
+    const verAlheio = await request(app)
+      .get(`/api/pedidos/${criado.body.pedido.id}`)
+      .set('Authorization', `Bearer ${loginOutro.body.token}`);
+    expect(verAlheio.status).toBe(404);
+  });
 });

@@ -53,3 +53,23 @@ export function podeConfigurar(perfil: Perfil): boolean {
 export function podeVerImagemOcorrencia(perfil: Perfil): boolean {
   return podeVerTodasOcorrencias(perfil) || perfil === 'AGRICULTOR';
 }
+
+/** Agricultor abre pedidos de apoio ao técnico. */
+export function podeCriarPedidoApoio(perfil: Perfil): boolean {
+  return perfil === 'AGRICULTOR';
+}
+
+/** Técnico/gestor atendem e encerram pedidos de apoio. */
+export function podeAtenderPedidoApoio(perfil: Perfil): boolean {
+  return perfil === 'TECNICO' || perfil === 'GESTOR';
+}
+
+/** Vê todos os pedidos (não só os próprios). */
+export function podeVerTodosPedidosApoio(perfil: Perfil): boolean {
+  return perfil === 'TECNICO' || perfil === 'GESTOR' || perfil === 'ADMIN_SISTEMA';
+}
+
+/** Acede ao ecrã de pedidos de apoio. */
+export function podeUsarPedidosApoio(perfil: Perfil): boolean {
+  return podeCriarPedidoApoio(perfil) || podeAtenderPedidoApoio(perfil) || perfil === 'ADMIN_SISTEMA';
+}

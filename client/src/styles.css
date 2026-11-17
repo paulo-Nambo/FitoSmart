@@ -3122,6 +3122,221 @@ input[aria-invalid='true']:focus-visible {
   gap: 0.5rem;
 }
 
+.apoio-ecra {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.apoio-filtro-ocorrencia,
+.apoio-ocorrencia-ligada,
+.apoio-pos-registo {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--linha);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--verde, #1a7a4c) 8%, #fff);
+}
+
+.apoio-filtro-ocorrencia {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.apoio-filtro-ocorrencia p,
+.apoio-pos-registo p {
+  margin: 0;
+}
+
+.apoio-ocorrencia-rotulo {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--texto-suave, #5b6b63);
+}
+
+.item-selos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.selo-apoio {
+  background: #dcecff;
+  color: #174a86;
+}
+
+.item-destacado {
+  outline: 2px solid color-mix(in srgb, var(--verde, #1a7a4c) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.apoio-novo {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--linha);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--fundo-elevado, #fff) 92%, var(--verde-suave, #e8f5ee));
+}
+
+.apoio-novo label,
+.apoio-resposta label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.apoio-novo input,
+.apoio-novo textarea,
+.apoio-novo select,
+.apoio-resposta textarea {
+  width: 100%;
+  border: 1px solid var(--linha-forte);
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  background: #fff;
+}
+
+.apoio-grelha {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+  align-items: start;
+}
+
+.apoio-lista-ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.apoio-item {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--linha);
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.apoio-item-activo {
+  border-color: color-mix(in srgb, var(--verde, #1a7a4c) 55%, var(--linha));
+  box-shadow: inset 3px 0 0 var(--verde, #1a7a4c);
+}
+
+.apoio-preview {
+  color: var(--texto-suave, #5b6b63);
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.apoio-estado {
+  display: inline-flex;
+  width: fit-content;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #eef2f0;
+  color: #345043;
+}
+
+.apoio-estado-aberto { background: #fff3d6; color: #7a5a00; }
+.apoio-estado-em_atendimento { background: #dcecff; color: #174a86; }
+.apoio-estado-encerrado { background: #e5eee8; color: #3d5a48; }
+
+.apoio-detalhe {
+  display: grid;
+  gap: 1rem;
+  min-height: 18rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--linha);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.apoio-detalhe-cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.apoio-detalhe-cabeca h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+}
+
+.apoio-accoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.apoio-thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  max-height: min(50vh, 28rem);
+  overflow: auto;
+}
+
+.apoio-msg {
+  max-width: 85%;
+  padding: 0.7rem 0.85rem;
+  border-radius: 14px;
+  background: #f3f6f4;
+}
+
+.apoio-msg-propria {
+  justify-self: end;
+  background: color-mix(in srgb, var(--verde, #1a7a4c) 14%, #fff);
+}
+
+.apoio-msg p {
+  margin: 0.35rem 0 0;
+  white-space: pre-wrap;
+  text-wrap: pretty;
+}
+
+.apoio-msg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--texto-suave, #5b6b63);
+}
+
+.apoio-resposta {
+  display: grid;
+  gap: 0.65rem;
+}
+
+@media (max-width: 860px) {
+  .apoio-grelha {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto; }
   .acesso .entrar:hover span,

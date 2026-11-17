@@ -1,5 +1,12 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type FormEvent, type Ref } from 'react';
-import { enviarImagem, registarOcorrencia, type Diagnostico, type Ocorrencia, type Severidade } from './api';
+import {
+  enviarImagem,
+  listarPedidosApoio,
+  registarOcorrencia,
+  type Diagnostico,
+  type Ocorrencia,
+  type Severidade,
+} from './api';
 import { CampoImagens, type CampoImagensHandle } from './campo-imagens';
 import { CartaoOcorrencia, rotuloSeveridade, rotuloSintoma } from './cartao-ocorrencia';
 import type { MenuId } from './barra-lateral';
@@ -46,21 +53,61 @@ interface EcraOcorrenciaProps {
   ocorrencias: Ocorrencia[];
   aoRegistar: (ocorrencia: Ocorrencia, mensagem?: string) => void;
   podeCriar?: boolean;
+  podePedirApoio?: boolean;
+  aoPedirApoio?: (ocorrenciaId: string) => void;
+  destacarId?: string | null;
 }
 
 const ListaOcorrencias = memo(function ListaOcorrencias({
   token,
   ocorrencias,
+  podePedirApoio = false,
+  aoPedirApoio,
+  destacarId = null,
 }: {
   token: string;
   ocorrencias: Ocorrencia[];
+  podePedirApoio?: boolean;
+  aoPedirApoio?: (ocorrenciaId: string) => void;
+  destacarId?: string | null;
 }) {
   const { filtro, escolher } = useFiltroEstado();
   const [pesquisa, setPesquisa] = useState('');
   const [vista, setVista] = useState<'lista' | 'mapa'>('lista');
+  const [pedidosPorOcorrencia, setPedidosPorOcorrencia] = useState<Record<string, number>>({});
   const filtradasEstado = filtrarEstado(porDataRecente(ocorrencias), filtro);
-  const visiveis = useMemo(() => filtrarPesquisa(filtradasEstado, pesquisa), [filtradasEstado, pesquisa]);
+  const visiveis = useMemo(() => {
+    const base = filtrarPesquisa(filtradasEstado, pesquisa);
+    if (!destacarId) return base;
+    return [...base].sort((a, b) => Number(b.id === destacarId) - Number(a.id === destacarId));
+  }, [filtradasEstado, pesquisa, destacarId]);
   const contagens = contarEstados(ocorrencias);
+
+  useEffect(() => {
+    let ativo = true;
+    listarPedidosApoio(token)
+      .then((dados) => {
+        if (!ativo) return;
+        const mapa: Record<string, number> = {};
+        for (const pedido of dados.pedidos) {
+          if (!pedido.ocorrenciaId) continue;
+          mapa[pedido.ocorrenciaId] = (mapa[pedido.ocorrenciaId] ?? 0) + 1;
+        }
+        setPedidosPorOcorrencia(mapa);
+      })
+      .catch(() => {
+        if (ativo) setPedidosPorOcorrencia({});
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [token, ocorrencias.length]);
+
+  useEffect(() => {
+    if (!destacarId) return;
+    const alvo = document.getElementById(`ocorrencia-${destacarId}`);
+    alvo?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [destacarId, visiveis]);
 
   return (
     <section className="lista-ecra" aria-labelledby="ocorrencias-titulo">
@@ -135,7 +182,13 @@ const ListaOcorrencias = memo(function ListaOcorrencias({
         <ul className="lista-ocorrencias">
           {visiveis.map((item) => (
             <li key={item.id} className="lista-linha">
-              <CartaoOcorrencia token={token} ocorrencia={item} />
+              <CartaoOcorrencia
+                token={token}
+                ocorrencia={item}
+                destacado={item.id === destacarId}
+                pedidosApoio={pedidosPorOcorrencia[item.id] ?? 0}
+                aoPedirApoio={podePedirApoio ? aoPedirApoio : undefined}
+              />
             </li>
           ))}
         </ul>
@@ -150,6 +203,9 @@ export function EcraOcorrencia({
   ocorrencias,
   aoRegistar,
   podeCriar = true,
+  podePedirApoio = false,
+  aoPedirApoio,
+  destacarId = null,
 }: EcraOcorrenciaProps) {
   return (
     <>
@@ -159,11 +215,22 @@ export function EcraOcorrencia({
       </section>
       {podeCriar ? (
         <div hidden={menu !== 'nova'}>
-          <FormularioOcorrencia token={token} aoRegistar={aoRegistar} activo={menu === 'nova'} />
+          <FormularioOcorrencia
+            token={token}
+            aoRegistar={aoRegistar}
+            activo={menu === 'nova'}
+            aoPedirApoio={podePedirApoio ? aoPedirApoio : undefined}
+          />
         </div>
       ) : null}
       <div hidden={menu !== 'ocorrencias'}>
-        <ListaOcorrencias token={token} ocorrencias={ocorrencias} />
+        <ListaOcorrencias
+          token={token}
+          ocorrencias={ocorrencias}
+          podePedirApoio={podePedirApoio}
+          aoPedirApoio={aoPedirApoio}
+          destacarId={destacarId}
+        />
       </div>
     </>
   );
@@ -400,10 +467,12 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
   token,
   aoRegistar,
   activo,
+  aoPedirApoio,
 }: {
   token: string;
   aoRegistar: EcraOcorrenciaProps['aoRegistar'];
   activo: boolean;
+  aoPedirApoio?: (ocorrenciaId: string) => void;
 }) {
   const [cultura, setCultura] = useState<(typeof CULTURAS)[number]>('Milho');
   const [parcelaNome, setParcelaNome] = useState('');
@@ -415,6 +484,7 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
   const [erro, setErro] = useState<string | null>(null);
   const [campoErro, setCampoErro] = useState<'sintomas' | 'latitude' | 'longitude' | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [ultimaOcorrenciaId, setUltimaOcorrenciaId] = useState<string | null>(null);
   const [aEnviar, setAEnviar] = useState(false);
   const sintomasRef = useRef<HTMLFieldSetElement>(null);
   const alertaRef = useRef<HTMLParagraphElement>(null);
@@ -566,6 +636,7 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
         }
       }
       aoRegistar(ocorrencia, resposta.mensagem);
+      setUltimaOcorrenciaId(ocorrencia.id);
       setAviso(resposta.mensagem ?? `Ocorrência triada com ${resposta.ocorrencia.confianca}\u00a0% de confiança.`);
       setSintomas(new Set());
       setDiagnostico(null);
@@ -797,9 +868,18 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
         </p>
       ) : null}
       {aviso ? (
-        <p className="sucesso" role="status" aria-live="polite">
-          {aviso}
-        </p>
+        <div className="sucesso apoio-pos-registo" role="status" aria-live="polite">
+          <p>{aviso}</p>
+          {aoPedirApoio && ultimaOcorrenciaId ? (
+            <button
+              type="button"
+              className="secundario"
+              onClick={() => aoPedirApoio(ultimaOcorrenciaId)}
+            >
+              Pedir apoio ao técnico sobre esta ocorrência
+            </button>
+          ) : null}
+        </div>
       ) : null}
       <button
         type="submit"

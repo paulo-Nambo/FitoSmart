@@ -15,28 +15,32 @@ import {
 } from './perfis';
 import type { Sessao } from './sessao';
 
-export type MenuId = 'painel' | 'nova' | 'ocorrencias' | 'fila' | 'acesso' | 'config' | 'tempo';
+export type MenuId = 'painel' | 'nova' | 'ocorrencias' | 'fila' | 'apoio' | 'acesso' | 'config' | 'tempo';
 
 type ItemMenu = { id: MenuId; rotulo: string; grupo: 'principal' | 'administracao' };
 
 const MENU_TEMPO = { id: 'tempo', rotulo: 'Previsão do tempo', grupo: 'principal' } as const;
+const MENU_APOIO = { id: 'apoio', rotulo: 'Pedidos de apoio', grupo: 'principal' } as const;
 
 const MENUS_POR_PERFIL: Record<Perfil, ReadonlyArray<ItemMenu>> = {
   AGRICULTOR: [
     { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
     { id: 'nova', rotulo: 'Nova ocorrência', grupo: 'principal' },
     { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
+    MENU_APOIO,
     MENU_TEMPO,
   ],
   TECNICO: [
     { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
     { id: 'fila', rotulo: 'Fila técnica', grupo: 'principal' },
+    MENU_APOIO,
     MENU_TEMPO,
   ],
   GESTOR: [
     { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
     { id: 'fila', rotulo: 'Fila técnica', grupo: 'principal' },
     { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
+    MENU_APOIO,
     MENU_TEMPO,
   ],
   VISUALIZADOR: [
@@ -55,6 +59,7 @@ const MENUS_POR_PERFIL: Record<Perfil, ReadonlyArray<ItemMenu>> = {
   ADMIN_SISTEMA: [
     { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
     { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
+    MENU_APOIO,
     { id: 'acesso', rotulo: 'Gestão de acesso', grupo: 'administracao' },
     { id: 'config', rotulo: 'Configuração', grupo: 'administracao' },
     MENU_TEMPO,
@@ -99,6 +104,18 @@ const ICONES: Record<MenuId, ReactNode> = {
         strokeWidth="1.75"
         strokeLinecap="round"
       />
+    </svg>
+  ),
+  apoio: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M5 7.5h14v9.5H9.2L5 20.5V7.5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path d="M8.5 11h7M8.5 14h4.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
   ),
   acesso: (
@@ -329,13 +346,26 @@ export function lerMenu(perfil: Sessao['perfil']): MenuId {
   return menus[0]?.id ?? 'painel';
 }
 
-export function urlDoMenu(id: MenuId): string {
+export function urlDoMenu(id: MenuId, extras?: Record<string, string | null | undefined>): string {
   const params = new URLSearchParams(window.location.search);
   params.delete('idle');
+  if (id !== 'apoio') params.delete('ocorrencia');
+  if (id !== 'ocorrencias') params.delete('destacar');
   if (id === 'painel') params.delete('menu');
   else params.set('menu', id);
+  if (extras) {
+    for (const [chave, valor] of Object.entries(extras)) {
+      if (valor) params.set(chave, valor);
+      else params.delete(chave);
+    }
+  }
   const consulta = params.toString();
   return consulta ? `${window.location.pathname}?${consulta}` : window.location.pathname;
+}
+
+export function lerParametroUrl(chave: string): string | null {
+  const valor = new URLSearchParams(window.location.search).get(chave);
+  return valor && valor.trim() ? valor.trim() : null;
 }
 
 interface BarraLateralProps {

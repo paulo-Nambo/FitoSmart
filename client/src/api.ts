@@ -293,3 +293,61 @@ export function validarOcorrencia(token: string, id: string, nota: string) {
 export function obterHistoricoOcorrencia(token: string, id: string) {
   return pedido<{ historico: EventoOcorrencia[] }>(`/api/ocorrencias/${id}/historico`, {}, token);
 }
+
+export type EstadoPedidoApoio = 'ABERTO' | 'EM_ATENDIMENTO' | 'ENCERRADO';
+
+export interface MensagemApoio {
+  id: string;
+  pedidoId: string;
+  autorEmail: string;
+  corpo: string;
+  criadoEm: string;
+}
+
+export interface PedidoApoio {
+  id: string;
+  assunto: string;
+  estado: EstadoPedidoApoio;
+  autorEmail: string;
+  tecnicoEmail: string | null;
+  ocorrenciaId: string | null;
+  criadoEm: string;
+  actualizadoEm: string;
+  mensagens?: MensagemApoio[];
+  preview?: string | null;
+}
+
+export function listarPedidosApoio(token: string) {
+  return pedido<{ pedidos: PedidoApoio[] }>('/api/pedidos', {}, token);
+}
+
+export function obterPedidoApoio(token: string, id: string) {
+  return pedido<{ pedido: PedidoApoio }>(`/api/pedidos/${encodeURIComponent(id)}`, {}, token);
+}
+
+export function criarPedidoApoio(
+  token: string,
+  corpo: { assunto: string; mensagem: string; ocorrenciaId?: string | null },
+) {
+  return pedido<{ pedido: PedidoApoio; mensagem?: string }>(
+    '/api/pedidos',
+    { method: 'POST', body: JSON.stringify(corpo) },
+    token,
+  );
+}
+
+export function responderPedidoApoio(token: string, id: string, mensagem: string) {
+  return pedido<{ pedido: PedidoApoio }>(
+    `/api/pedidos/${encodeURIComponent(id)}/mensagens`,
+    { method: 'POST', body: JSON.stringify({ mensagem }) },
+    token,
+  );
+}
+
+export function actualizarEstadoPedidoApoio(token: string, id: string, estado: EstadoPedidoApoio) {
+  return pedido<{ pedido: PedidoApoio }>(
+    `/api/pedidos/${encodeURIComponent(id)}`,
+    { method: 'PATCH', body: JSON.stringify({ estado }) },
+    token,
+  );
+}

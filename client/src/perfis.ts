@@ -54,3 +54,19 @@ export function podeGerirContas(perfil: Perfil): boolean {
 export function podeConfigurar(perfil: Perfil): boolean {
   return perfil === 'ADMIN_CONFIG' || perfil === 'ADMIN_SISTEMA';
 }
+
+export function podeCriarPedidoApoio(perfil: Perfil): boolean {
+  return perfil === 'AGRICULTOR';
+}
+
+export function podeAtenderPedidoApoio(perfil: Perfil): boolean {
+  return perfil === 'TECNICO' || perfil === 'GESTOR';
+}
+
+export function podeVerTodosPedidosApoio(perfil: Perfil): boolean {
+  return perfil === 'TECNICO' || perfil === 'GESTOR' || perfil === 'ADMIN_SISTEMA';
+}
+
+export function podeUsarPedidosApoio(perfil: Perfil): boolean {
+  return podeCriarPedidoApoio(perfil) || podeAtenderPedidoApoio(perfil) || perfil === 'ADMIN_SISTEMA';
+}

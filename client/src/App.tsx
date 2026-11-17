@@ -31,6 +31,7 @@ const importarAcesso = () => import('./ecra-acesso');
 const importarConfig = () => import('./ecra-config');
 const importarTempo = () => import('./ecra-tempo');
 const importarApoio = () => import('./ecra-apoio');
+const importarRanking = () => import('./ecra-ranking');
 
 const EcraOcorrencia = lazy(() => importarOcorrencia().then((modulo) => ({ default: modulo.EcraOcorrencia })));
 const EcraTecnico = lazy(() => importarTecnico().then((modulo) => ({ default: modulo.EcraTecnico })));
@@ -38,6 +39,7 @@ const EcraAcesso = lazy(() => importarAcesso().then((modulo) => ({ default: modu
 const EcraConfig = lazy(() => importarConfig().then((modulo) => ({ default: modulo.EcraConfig })));
 const EcraTempo = lazy(() => importarTempo().then((modulo) => ({ default: modulo.EcraTempo })));
 const EcraApoio = lazy(() => importarApoio().then((modulo) => ({ default: modulo.EcraApoio })));
+const EcraRanking = lazy(() => importarRanking().then((modulo) => ({ default: modulo.EcraRanking })));
 
 const RESERVA = <p className="nota">A carregar…</p>;
 
@@ -72,6 +74,7 @@ function preverEcra(perfil: Perfil) {
   if (podeConfigurar(perfil)) void importarConfig();
   if (podeValidar(perfil)) void importarTecnico();
   if (podeUsarPedidosApoio(perfil)) void importarApoio();
+  void importarRanking();
   if (podeRegistarOcorrencia(perfil) || perfil === 'VISUALIZADOR' || perfil === 'ADMIN_SISTEMA') {
     void importarOcorrencia();
   }
@@ -245,10 +248,16 @@ export function App() {
               aoVerOcorrencia={verOcorrencia}
               aoIrNovaOcorrencia={() => escolherMenu('nova')}
             />
+          ) : menu === 'ranking' ? (
+            <EcraRanking token={sessao.token} />
           ) : (
             <EcraOcorrencia
               menu={
-                menu === 'acesso' || menu === 'config' || menu === 'fila' || menu === 'apoio'
+                menu === 'acesso' ||
+                menu === 'config' ||
+                menu === 'fila' ||
+                menu === 'apoio' ||
+                menu === 'ranking'
                   ? 'painel'
                   : menu
               }

@@ -152,6 +152,19 @@ CREATE INDEX IF NOT EXISTS idx_pedidos_apoio_estado
 CREATE INDEX IF NOT EXISTS idx_pedido_mensagens_pedido
   ON pedido_mensagens (pedido_id, criado_em ASC);
 
+CREATE TABLE IF NOT EXISTS avaliacoes_tecnicos (
+  id uuid PRIMARY KEY,
+  pedido_id uuid NOT NULL UNIQUE REFERENCES pedidos_apoio(id) ON DELETE CASCADE,
+  tecnico_email text NOT NULL,
+  autor_email text NOT NULL,
+  estrelas smallint NOT NULL CHECK (estrelas BETWEEN 1 AND 5),
+  comentario text,
+  criado_em timestamptz NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_avaliacoes_tecnicos_tecnico
+  ON avaliacoes_tecnicos (tecnico_email, criado_em DESC);
+
 -- Remover contas de demonstração antigas
 DELETE FROM utilizadores WHERE email IN (
   'agricultor@uem.mz',

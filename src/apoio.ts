@@ -2,8 +2,10 @@ import type { Request, Response } from 'express';
 import {
   adicionarMensagemApoio,
   actualizarEstadoPedidoApoio,
+  criarAvaliacaoTecnico,
   criarPedidoApoio,
   listarPedidosApoio,
+  listarRankingTecnicos,
   obterPedidoApoio,
   obterOcorrencia,
 } from './base';
@@ -14,7 +16,7 @@ import {
   podeUsarPedidosApoio,
   podeVerTodosPedidosApoio,
 } from './perfis';
-import type { EstadoPedidoApoio } from './tipos';
+import type { EstadoPedidoApoio, Estrelas } from './tipos';
 
 const ASSUNTO_MIN = 3;
 const ASSUNTO_MAX = 120;
@@ -202,4 +204,78 @@ export async function actualizarPedidoHandler(req: Request, res: Response) {
 
   const pedido = await actualizarEstadoPedidoApoio(id, estado, tecnicoEmail);
   res.json({ pedido });
+}
+
+export async function avaliarPedidoHandler(req: Request, res: Response) {
+  const identidade = identificarPedido(req);
+  if (!identidade?.email) {
+    res.status(401).json({ erro: 'Autenticação necessária' });
+    return;
+  }
+  if (!podeCriarPedidoApoio(identidade.perfil)) {
+    res.status(403).json({ erro: 'Acesso negado: só o agricultor avalia a assistência' });
+    return;
+  }
+
+  const id = typeof req.params.id === 'string' ? req.params.id : '';
+  const estrelasBrutas = Number(req.body?.estrelas);
+  const estrelas = ([1, 2, 3, 4, 5] as const).includes(estrelasBrutas as Estrelas)
+    ? (estrelasBrutas as Estrelas)
+    : null;
+  const comentarioBruto = limparCorpo(req.body?.comentario);
+  const comentario = comentarioBruto.length > 0 ? comentarioBruto.slice(0, 500) : null;
+
+  if (!estrelas) {
+    res.status(400).json({ erro: 'Indique entre 1 e 5 estrelas' });
+    return;
+  }
+
+  const pedido = await obterPedidoApoio(id);
+  if (!pedido || pedido.autorEmail !== identidade.email) {
+    res.status(404).json({ erro: 'Pedido de apoio não encontrado' });
+    return;
+  }
+  if (pedido.estado !== 'ENCERRADO') {
+    res.status(400).json({ erro: 'Só pode avaliar depois do pedido estar encerrado' });
+    return;
+  }
+  if (!pedido.tecnicoEmail) {
+    res.status(400).json({ erro: 'Este pedido ainda não tem técnico associado' });
+    return;
+  }
+  if (pedido.avaliacao) {
+    res.status(409).json({ erro: 'Este pedido já foi avaliado' });
+    return;
+  }
+
+  try {
+    const avaliacao = await criarAvaliacaoTecnico({
+      pedidoId: pedido.id,
+      tecnicoEmail: pedido.tecnicoEmail,
+      autorEmail: identidade.email,
+      estrelas,
+      comentario,
+    });
+    res.status(201).json({
+      avaliacao,
+      pedido: { ...pedido, avaliacao },
+      mensagem: 'Obrigado. A sua avaliação entrou no ranking dos técnicos.',
+    });
+  } catch (erro) {
+    if (erro instanceof Error && erro.message === 'Pedido já avaliado') {
+      res.status(409).json({ erro: 'Este pedido já foi avaliado' });
+      return;
+    }
+    throw erro;
+  }
+}
+
+export async function rankingTecnicosHandler(req: Request, res: Response) {
+  const identidade = identificarPedido(req);
+  if (!identidade?.email) {
+    res.status(401).json({ erro: 'Autenticação necessária' });
+    return;
+  }
+  const ranking = await listarRankingTecnicos();
+  res.json({ ranking });
 }

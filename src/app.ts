@@ -6,9 +6,11 @@ import helmet from 'helmet';
 import { actualizarPerfilHandler, criarUtilizadorHandler, listarUtilizadoresHandler } from './acesso';
 import {
   actualizarPedidoHandler,
+  avaliarPedidoHandler,
   criarPedidoHandler,
   listarPedidosHandler,
   obterPedidoHandler,
+  rankingTecnicosHandler,
   responderPedidoHandler,
 } from './apoio';
 import { actualizarContaHandler, alterarSenhaHandler, loginHandler } from './auth';
@@ -136,6 +138,8 @@ export function criarApp() {
   app.get('/api/pedidos/:id', obterPedidoHandler);
   app.post('/api/pedidos/:id/mensagens', limitePedidosApoio, responderPedidoHandler);
   app.patch('/api/pedidos/:id', actualizarPedidoHandler);
+  app.post('/api/pedidos/:id/avaliacao', limitePedidosApoio, avaliarPedidoHandler);
+  app.get('/api/ranking/tecnicos', rankingTecnicosHandler);
 
   // Com DATABASE_URL: imagens vêm da BD; sem BD (ou miss): ficheiros em public/.
   app.get('/referencias/:entradaId/:nome', limiteReferencias, servirReferenciaHandler);

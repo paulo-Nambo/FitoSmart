@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   actualizarEstadoPedidoApoio,
+  avaliarPedidoApoio,
   criarPedidoApoio,
   ErroApi,
   listarPedidosApoio,
   obterPedidoApoio,
   responderPedidoApoio,
   type EstadoPedidoApoio,
+  type Estrelas,
   type Ocorrencia,
   type PedidoApoio,
 } from './api';
@@ -94,6 +96,8 @@ export function EcraApoio({
   const [filtroOcorrencia, setFiltroOcorrencia] = useState<string | null>(null);
   const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoPedidoApoio>('todos');
   const [resposta, setResposta] = useState('');
+  const [estrelas, setEstrelas] = useState<Estrelas | 0>(0);
+  const [comentarioAvaliacao, setComentarioAvaliacao] = useState('');
   const [pendente, setPendente] = useState(false);
 
   const proprias = useMemo(
@@ -164,6 +168,8 @@ export function EcraApoio({
     async (id: string) => {
       setErro(null);
       setResposta('');
+      setEstrelas(0);
+      setComentarioAvaliacao('');
       setMostrarNovo(false);
       try {
         const dados = await obterPedidoApoio(token, id);
@@ -174,6 +180,26 @@ export function EcraApoio({
     },
     [token],
   );
+
+  const enviarAvaliacao = async () => {
+    if (!seleccionado || !estrelas) return;
+    setPendente(true);
+    setErro(null);
+    try {
+      const dados = await avaliarPedidoApoio(token, seleccionado.id, {
+        estrelas,
+        comentario: comentarioAvaliacao.trim() || null,
+      });
+      setSeleccionado(dados.pedido);
+      setEstrelas(0);
+      setComentarioAvaliacao('');
+      await refrescar();
+    } catch (falha) {
+      setErro(falha instanceof ErroApi ? falha.message : 'Não foi possível guardar a avaliação.');
+    } finally {
+      setPendente(false);
+    }
+  };
 
   const aplicadoInicial = useRef<string | null>(null);
   useEffect(() => {
@@ -723,6 +749,79 @@ export function EcraApoio({
                 ) : (
                   <p className="nota apoio-encerrado">Este pedido está encerrado.</p>
                 )}
+
+                {seleccionado.estado === 'ENCERRADO' &&
+                seleccionado.autorEmail === email &&
+                seleccionado.tecnicoEmail &&
+                !seleccionado.avaliacao ? (
+                  <form
+                    className="apoio-avaliacao"
+                    onSubmit={(evento) => {
+                      evento.preventDefault();
+                      void enviarAvaliacao();
+                    }}
+                  >
+                    <h3>Avaliar assistência</h3>
+                    <p className="nota">
+                      Classifique o técnico <strong translate="no">{seleccionado.tecnicoEmail}</strong>.
+                    </p>
+                    <div className="apoio-estrelas" role="radiogroup" aria-label="Estrelas">
+                      {([1, 2, 3, 4, 5] as const).map((valor) => (
+                        <button
+                          key={valor}
+                          type="button"
+                          className={
+                            estrelas >= valor ? 'estrela-botao estrela-botao-activo' : 'estrela-botao'
+                          }
+                          aria-label={`${valor} estrela${valor > 1 ? 's' : ''}`}
+                          aria-pressed={estrelas === valor}
+                          onClick={() => setEstrelas(valor)}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                    <label className="apoio-campo">
+                      <span>Comentário (opcional)</span>
+                      <textarea
+                        value={comentarioAvaliacao}
+                        maxLength={500}
+                        rows={2}
+                        onChange={(evento) => setComentarioAvaliacao(evento.target.value)}
+                        placeholder="O que correu bem na assistência?"
+                        disabled={pendente}
+                      />
+                    </label>
+                    <button type="submit" className="primario" disabled={pendente || !estrelas}>
+                      {pendente ? 'A guardar…' : 'Enviar avaliação'}
+                    </button>
+                  </form>
+                ) : null}
+
+                {seleccionado.avaliacao ? (
+                  <aside className="apoio-avaliacao-feita">
+                    <p className="apoio-ocorrencia-rotulo">Avaliação registada</p>
+                    <p className="ranking-estrelas" aria-label={`${seleccionado.avaliacao.estrelas} estrelas`}>
+                      {[1, 2, 3, 4, 5].map((valor) => (
+                        <span
+                          key={valor}
+                          className={
+                            valor <= seleccionado.avaliacao!.estrelas
+                              ? 'estrela estrela-cheia'
+                              : 'estrela'
+                          }
+                          aria-hidden="true"
+                        >
+                          ★
+                        </span>
+                      ))}
+                      <strong>{seleccionado.avaliacao.estrelas}/5</strong>
+                    </p>
+                    {seleccionado.avaliacao.comentario ? (
+                      <p className="meta">{seleccionado.avaliacao.comentario}</p>
+                    ) : null}
+                  </aside>
+                ) : null}
               </>
             )}
           </div>

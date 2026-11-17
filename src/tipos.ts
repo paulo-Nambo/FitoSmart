@@ -88,4 +88,24 @@ export interface PedidoApoio {
   actualizadoEm: string;
   mensagens?: MensagemApoio[];
   preview?: string | null;
+  avaliacao?: AvaliacaoTecnico | null;
+}
+
+export type Estrelas = 1 | 2 | 3 | 4 | 5;
+
+export interface AvaliacaoTecnico {
+  id: string;
+  pedidoId: string;
+  tecnicoEmail: string;
+  autorEmail: string;
+  estrelas: Estrelas;
+  comentario: string | null;
+  criadoEm: string;
+}
+
+export interface RankingTecnico {
+  email: string;
+  nome: string;
+  media: number;
+  total: number;
 }

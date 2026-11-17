@@ -8,12 +8,15 @@ import { ePerfil, podeVerTodasOcorrencias, podeVerTodosPedidosApoio, type Perfil
 import type {
   ContaPublica,
   EstadoOcorrencia,
+  AvaliacaoTecnico,
   EstadoPedidoApoio,
+  Estrelas,
   EventoOcorrencia,
   MensagemApoio,
   Ocorrencia,
   Parcela,
   PedidoApoio,
+  RankingTecnico,
   Severidade,
 } from './tipos';
 
@@ -112,6 +115,19 @@ CREATE INDEX IF NOT EXISTS idx_pedidos_apoio_estado
 
 CREATE INDEX IF NOT EXISTS idx_pedido_mensagens_pedido
   ON pedido_mensagens (pedido_id, criado_em ASC);
+
+CREATE TABLE IF NOT EXISTS avaliacoes_tecnicos (
+  id uuid PRIMARY KEY,
+  pedido_id uuid NOT NULL UNIQUE REFERENCES pedidos_apoio(id) ON DELETE CASCADE,
+  tecnico_email text NOT NULL,
+  autor_email text NOT NULL,
+  estrelas smallint NOT NULL CHECK (estrelas BETWEEN 1 AND 5),
+  comentario text,
+  criado_em timestamptz NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_avaliacoes_tecnicos_tecnico
+  ON avaliacoes_tecnicos (tecnico_email, criado_em DESC);
 `;
 
 const ocorrenciasMemoria: Ocorrencia[] = [];
@@ -119,6 +135,7 @@ const parcelasMemoria: Parcela[] = [];
 const eventosMemoria: EventoOcorrencia[] = [];
 const pedidosMemoria: PedidoApoio[] = [];
 const mensagensApoioMemoria: MensagemApoio[] = [];
+const avaliacoesMemoria: AvaliacaoTecnico[] = [];
 
 function copiarContas(): Conta[] {
   return CONTAS_INICIAIS.map((conta) => ({
@@ -174,6 +191,7 @@ export function reporEstado(): void {
   eventosMemoria.length = 0;
   pedidosMemoria.length = 0;
   mensagensApoioMemoria.length = 0;
+  avaliacoesMemoria.length = 0;
   utilizadoresMemoria = copiarContas();
 }
 
@@ -199,6 +217,33 @@ function mapearMensagemApoio(linha: QueryResultRow): MensagemApoio {
     corpo: String(linha.corpo),
     criadoEm: new Date(linha.criado_em as string | Date).toISOString(),
   };
+}
+
+function mapearAvaliacao(linha: QueryResultRow): AvaliacaoTecnico {
+  return {
+    id: String(linha.id),
+    pedidoId: String(linha.pedido_id),
+    tecnicoEmail: String(linha.tecnico_email),
+    autorEmail: String(linha.autor_email),
+    estrelas: Number(linha.estrelas) as Estrelas,
+    comentario: linha.comentario == null || String(linha.comentario).trim() === ''
+      ? null
+      : String(linha.comentario),
+    criadoEm: new Date(linha.criado_em as string | Date).toISOString(),
+  };
+}
+
+async function obterAvaliacaoDoPedido(pedidoId: string): Promise<AvaliacaoTecnico | null> {
+  const ligacao = obterPool();
+  if (!ligacao) {
+    return avaliacoesMemoria.find((item) => item.pedidoId === pedidoId) ?? null;
+  }
+  const resultado = await ligacao.query(
+    `SELECT * FROM avaliacoes_tecnicos WHERE pedido_id = $1 LIMIT 1`,
+    [pedidoId],
+  );
+  const linha = resultado.rows[0];
+  return linha ? mapearAvaliacao(linha) : null;
 }
 
 function mapearContaPublica(linha: {
@@ -864,7 +909,8 @@ export async function obterPedidoApoio(id: string): Promise<PedidoApoio | null> 
     const mensagens = mensagensApoioMemoria
       .filter((mensagem) => mensagem.pedidoId === id)
       .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
-    return { ...pedido, mensagens, preview: mensagens.at(-1)?.corpo ?? null };
+    const avaliacao = await obterAvaliacaoDoPedido(id);
+    return { ...pedido, mensagens, preview: mensagens.at(-1)?.corpo ?? null, avaliacao };
   }
 
   const resultado = await ligacao.query(`SELECT * FROM pedidos_apoio WHERE id = $1`, [id]);
@@ -876,7 +922,100 @@ export async function obterPedidoApoio(id: string): Promise<PedidoApoio | null> 
   );
   const pedido = mapearPedido(linha);
   const lista = mensagens.rows.map(mapearMensagemApoio);
-  return { ...pedido, mensagens: lista, preview: lista.at(-1)?.corpo ?? null };
+  const avaliacao = await obterAvaliacaoDoPedido(id);
+  return { ...pedido, mensagens: lista, preview: lista.at(-1)?.corpo ?? null, avaliacao };
+}
+
+export async function criarAvaliacaoTecnico(entrada: {
+  pedidoId: string;
+  tecnicoEmail: string;
+  autorEmail: string;
+  estrelas: Estrelas;
+  comentario: string | null;
+}): Promise<AvaliacaoTecnico> {
+  const agora = new Date().toISOString();
+  const avaliacao: AvaliacaoTecnico = {
+    id: randomUUID(),
+    pedidoId: entrada.pedidoId,
+    tecnicoEmail: entrada.tecnicoEmail,
+    autorEmail: entrada.autorEmail,
+    estrelas: entrada.estrelas,
+    comentario: entrada.comentario,
+    criadoEm: agora,
+  };
+
+  const ligacao = obterPool();
+  if (!ligacao) {
+    if (avaliacoesMemoria.some((item) => item.pedidoId === entrada.pedidoId)) {
+      throw new Error('Pedido já avaliado');
+    }
+    avaliacoesMemoria.push(avaliacao);
+    return avaliacao;
+  }
+
+  try {
+    await ligacao.query(
+      `INSERT INTO avaliacoes_tecnicos
+        (id, pedido_id, tecnico_email, autor_email, estrelas, comentario, criado_em)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        avaliacao.id,
+        entrada.pedidoId,
+        entrada.tecnicoEmail,
+        entrada.autorEmail,
+        entrada.estrelas,
+        entrada.comentario,
+        agora,
+      ],
+    );
+  } catch (erro) {
+    const codigo = typeof erro === 'object' && erro && 'code' in erro ? String((erro as { code: unknown }).code) : '';
+    if (codigo === '23505') throw new Error('Pedido já avaliado');
+    throw erro;
+  }
+  return avaliacao;
+}
+
+export async function listarRankingTecnicos(): Promise<RankingTecnico[]> {
+  const ligacao = obterPool();
+  if (!ligacao) {
+    const porEmail = new Map<string, { soma: number; total: number }>();
+    for (const item of avaliacoesMemoria) {
+      const actual = porEmail.get(item.tecnicoEmail) ?? { soma: 0, total: 0 };
+      actual.soma += item.estrelas;
+      actual.total += 1;
+      porEmail.set(item.tecnicoEmail, actual);
+    }
+    return [...porEmail.entries()]
+      .map(([email, stats]) => {
+        const conta = utilizadoresMemoria.find((item) => item.email === email);
+        return {
+          email,
+          nome: conta?.nome?.trim() || email.split('@')[0] || email,
+          media: Number((stats.soma / stats.total).toFixed(2)),
+          total: stats.total,
+        };
+      })
+      .sort((a, b) => b.media - a.media || b.total - a.total);
+  }
+
+  const resultado = await ligacao.query(
+    `SELECT
+       a.tecnico_email AS email,
+       COALESCE(NULLIF(TRIM(u.nome), ''), split_part(a.tecnico_email, '@', 1)) AS nome,
+       ROUND(AVG(a.estrelas)::numeric, 2) AS media,
+       COUNT(*)::int AS total
+     FROM avaliacoes_tecnicos a
+     LEFT JOIN utilizadores u ON u.email = a.tecnico_email
+     GROUP BY a.tecnico_email, u.nome
+     ORDER BY media DESC, total DESC, nome ASC`,
+  );
+  return resultado.rows.map((linha) => ({
+    email: String(linha.email),
+    nome: String(linha.nome),
+    media: Number(linha.media),
+    total: Number(linha.total),
+  }));
 }
 
 export async function adicionarMensagemApoio(entrada: {
@@ -1012,6 +1151,19 @@ export async function prepararBase(): Promise<void> {
   );
   await ligacao.query(
     `CREATE INDEX IF NOT EXISTS idx_pedido_mensagens_pedido ON pedido_mensagens (pedido_id, criado_em ASC)`,
+  );
+  await ligacao.query(`
+    CREATE TABLE IF NOT EXISTS avaliacoes_tecnicos (
+      id uuid PRIMARY KEY,
+      pedido_id uuid NOT NULL UNIQUE REFERENCES pedidos_apoio(id) ON DELETE CASCADE,
+      tecnico_email text NOT NULL,
+      autor_email text NOT NULL,
+      estrelas smallint NOT NULL CHECK (estrelas BETWEEN 1 AND 5),
+      comentario text,
+      criado_em timestamptz NOT NULL
+    )`);
+  await ligacao.query(
+    `CREATE INDEX IF NOT EXISTS idx_avaliacoes_tecnicos_tecnico ON avaliacoes_tecnicos (tecnico_email, criado_em DESC)`,
   );
   await ligacao.query(`ALTER TABLE utilizadores ADD COLUMN IF NOT EXISTS nome text NOT NULL DEFAULT ''`);
   await ligacao.query(`ALTER TABLE utilizadores ADD COLUMN IF NOT EXISTS organizacao text`);

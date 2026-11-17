@@ -40,6 +40,14 @@ _Avoid_: Ocorrência, triagem
 Canal de mensagens entre Agricultor e Técnico/Gestor sobre uma Ocorrência concreta, com estados ABERTO → EM_ATENDIMENTO → ENCERRADO. Todo pedido referencia uma Ocorrência.
 _Avoid_: Ticket, chat genérico, issue, suporte IT
 
+**Avaliação do técnico**:
+Classificação de 1 a 5 estrelas que o Agricultor atribui a um Técnico/Gestor após um Pedido de apoio ENCERRADO (uma avaliação por pedido).
+_Avoid_: Review genérico, like, feedback IT
+
+**Ranking de técnicos**:
+Ordenação dos técnicos/agronómios pela média das Avaliações e pelo número de assistências avaliadas.
+_Avoid_: Leaderboard gamificado, score arbitrário
+
 **Conta**:
 Credencial de acesso (email + senha) ligada a um Titular e a um Perfil.
 _Avoid_: Utilizador genérico, login, user

@@ -15,12 +15,22 @@ import {
 } from './perfis';
 import type { Sessao } from './sessao';
 
-export type MenuId = 'painel' | 'nova' | 'ocorrencias' | 'fila' | 'apoio' | 'acesso' | 'config' | 'tempo';
+export type MenuId =
+  | 'painel'
+  | 'nova'
+  | 'ocorrencias'
+  | 'fila'
+  | 'apoio'
+  | 'ranking'
+  | 'acesso'
+  | 'config'
+  | 'tempo';
 
 type ItemMenu = { id: MenuId; rotulo: string; grupo: 'principal' | 'administracao' };
 
 const MENU_TEMPO = { id: 'tempo', rotulo: 'Previsão do tempo', grupo: 'principal' } as const;
 const MENU_APOIO = { id: 'apoio', rotulo: 'Pedidos de apoio', grupo: 'principal' } as const;
+const MENU_RANKING = { id: 'ranking', rotulo: 'Melhores técnicos', grupo: 'principal' } as const;
 
 const MENUS_POR_PERFIL: Record<Perfil, ReadonlyArray<ItemMenu>> = {
   AGRICULTOR: [
@@ -28,12 +38,14 @@ const MENUS_POR_PERFIL: Record<Perfil, ReadonlyArray<ItemMenu>> = {
     { id: 'nova', rotulo: 'Nova ocorrência', grupo: 'principal' },
     { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
     MENU_APOIO,
+    MENU_RANKING,
     MENU_TEMPO,
   ],
   TECNICO: [
     { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
     { id: 'fila', rotulo: 'Fila técnica', grupo: 'principal' },
     MENU_APOIO,
+    MENU_RANKING,
     MENU_TEMPO,
   ],
   GESTOR: [
@@ -41,11 +53,13 @@ const MENUS_POR_PERFIL: Record<Perfil, ReadonlyArray<ItemMenu>> = {
     { id: 'fila', rotulo: 'Fila técnica', grupo: 'principal' },
     { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
     MENU_APOIO,
+    MENU_RANKING,
     MENU_TEMPO,
   ],
   VISUALIZADOR: [
     { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
     { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
+    MENU_RANKING,
     MENU_TEMPO,
   ],
   ADMIN_CONTAS: [
@@ -60,6 +74,7 @@ const MENUS_POR_PERFIL: Record<Perfil, ReadonlyArray<ItemMenu>> = {
     { id: 'painel', rotulo: 'Painel', grupo: 'principal' },
     { id: 'ocorrencias', rotulo: 'Ocorrências', grupo: 'principal' },
     MENU_APOIO,
+    MENU_RANKING,
     { id: 'acesso', rotulo: 'Gestão de acesso', grupo: 'administracao' },
     { id: 'config', rotulo: 'Configuração', grupo: 'administracao' },
     MENU_TEMPO,
@@ -116,6 +131,18 @@ const ICONES: Record<MenuId, ReactNode> = {
         strokeLinejoin="round"
       />
       <path d="M8.5 11h7M8.5 14h4.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  ),
+  ranking: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 4.5l1.7 3.5 3.8.6-2.75 2.7.65 3.8L12 13.4l-3.4 1.8.65-3.8L6.5 8.6l3.8-.6L12 4.5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path d="M6 19.5h12" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
   ),
   acesso: (

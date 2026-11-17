@@ -304,6 +304,25 @@ export interface MensagemApoio {
   criadoEm: string;
 }
 
+export type Estrelas = 1 | 2 | 3 | 4 | 5;
+
+export interface AvaliacaoTecnico {
+  id: string;
+  pedidoId: string;
+  tecnicoEmail: string;
+  autorEmail: string;
+  estrelas: Estrelas;
+  comentario: string | null;
+  criadoEm: string;
+}
+
+export interface RankingTecnico {
+  email: string;
+  nome: string;
+  media: number;
+  total: number;
+}
+
 export interface PedidoApoio {
   id: string;
   assunto: string;
@@ -315,6 +334,7 @@ export interface PedidoApoio {
   actualizadoEm: string;
   mensagens?: MensagemApoio[];
   preview?: string | null;
+  avaliacao?: AvaliacaoTecnico | null;
 }
 
 export function listarPedidosApoio(token: string) {
@@ -350,4 +370,20 @@ export function actualizarEstadoPedidoApoio(token: string, id: string, estado: E
     { method: 'PATCH', body: JSON.stringify({ estado }) },
     token,
   );
+}
+
+export function avaliarPedidoApoio(
+  token: string,
+  id: string,
+  corpo: { estrelas: Estrelas; comentario?: string | null },
+) {
+  return pedido<{ avaliacao: AvaliacaoTecnico; pedido: PedidoApoio; mensagem?: string }>(
+    `/api/pedidos/${encodeURIComponent(id)}/avaliacao`,
+    { method: 'POST', body: JSON.stringify(corpo) },
+    token,
+  );
+}
+
+export function listarRankingTecnicos(token: string) {
+  return pedido<{ ranking: RankingTecnico[] }>('/api/ranking/tecnicos', {}, token);
 }

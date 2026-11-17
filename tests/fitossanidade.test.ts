@@ -316,5 +316,22 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
       .get(`/api/pedidos/${criado.body.pedido.id}`)
       .set('Authorization', `Bearer ${loginOutro.body.token}`);
     expect(verAlheio.status).toBe(404);
+
+    const avaliar = await request(app)
+      .post(`/api/pedidos/${criado.body.pedido.id}/avaliacao`)
+      .set('Authorization', `Bearer ${agr.body.token}`)
+      .send({ estrelas: 5, comentario: 'Orientação clara e útil.' });
+    expect(avaliar.status).toBe(201);
+    expect(avaliar.body.avaliacao.estrelas).toBe(5);
+
+    const ranking = await request(app)
+      .get('/api/ranking/tecnicos')
+      .set('Authorization', `Bearer ${agr.body.token}`);
+    expect(ranking.status).toBe(200);
+    expect(ranking.body.ranking[0]).toMatchObject({
+      email: 'tecnico.apoio@uem.mz',
+      media: 5,
+      total: 1,
+    });
   });
 });

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { entrar } from './api';
-import { FormularioAlterarSenha } from './formulario-senha';
 import {
   carregarPrevisaoSemanaMaputo,
   LOCAL_PREVISAO,
@@ -9,8 +8,6 @@ import {
 } from './previsao-tempo';
 import { guardarSessao, type Sessao } from './sessao';
 import { MINUTOS_INACTIVIDADE } from './use-inactividade';
-
-const ANO = new Date().getFullYear();
 
 function faixaStyle(minima: number, maxima: number): CSSProperties {
   return {
@@ -103,20 +100,9 @@ const ICONE_ALERTA = (
   </svg>
 );
 
-const ICONE_OK = (
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" />
-    <path fill="none" stroke="currentColor" strokeWidth="1.8" d="m8.5 12 2.4 2.4 4.6-5" />
-  </svg>
-);
-
 function avisoInactividade(): string {
   if (new URLSearchParams(window.location.search).get('idle') !== '1') return '';
   return `Sessão terminada por inactividade (${MINUTOS_INACTIVIDADE} minutos sem uso). Inicie sessão novamente.`;
-}
-
-function modoInicial(): 'entrar' | 'senha' {
-  return new URLSearchParams(window.location.search).get('senha') === '1' ? 'senha' : 'entrar';
 }
 
 interface EcraLoginProps {
@@ -131,7 +117,8 @@ export function EcraLogin({ aoEntrar, aoPrever }: EcraLoginProps) {
         Saltar para o conteúdo principal
       </a>
       <main id="conteudo" className="acesso-formulario">
-        <PainelAcesso aoEntrar={aoEntrar} aoPrever={aoPrever} />
+        <div className="acesso-movel">{MARCA}</div>
+        <FormularioLogin aoEntrar={aoEntrar} aoPrever={aoPrever} />
       </main>
       <aside className="acesso-marca" aria-label="Previsão do tempo e marca FitoSmart">
         {DECOR}
@@ -142,56 +129,7 @@ export function EcraLogin({ aoEntrar, aoPrever }: EcraLoginProps) {
   );
 }
 
-function PainelAcesso({ aoEntrar, aoPrever }: EcraLoginProps) {
-  const [modo, setModo] = useState<'entrar' | 'senha'>(modoInicial);
-  const [avisoSenha, setAvisoSenha] = useState('');
-
-  function irParaSenha() {
-    setAvisoSenha('');
-    setModo('senha');
-    const params = new URLSearchParams(window.location.search);
-    params.set('senha', '1');
-    params.delete('idle');
-    const consulta = params.toString();
-    window.history.replaceState(null, '', consulta ? `?${consulta}` : window.location.pathname);
-  }
-
-  function irParaEntrar(mensagem = '') {
-    setAvisoSenha(mensagem);
-    setModo('entrar');
-    const params = new URLSearchParams(window.location.search);
-    params.delete('senha');
-    const consulta = params.toString();
-    window.history.replaceState(null, '', consulta ? `?${consulta}` : window.location.pathname);
-  }
-
-  return (
-    <>
-      <div className="acesso-movel">{MARCA}</div>
-      {modo === 'senha' ? (
-        <FormularioAlterarSenha
-          aoCancelar={() => irParaEntrar()}
-          aoSucesso={(mensagem) => irParaEntrar(mensagem)}
-          rodape={<p className="acesso-rodape">© {ANO} UEM · Fitossanidade</p>}
-        />
-      ) : (
-        <FormularioLogin
-          aoEntrar={aoEntrar}
-          aoPrever={aoPrever}
-          avisoExtra={avisoSenha}
-          aoAlterarSenha={irParaSenha}
-        />
-      )}
-    </>
-  );
-}
-
-function FormularioLogin({
-  aoEntrar,
-  aoPrever,
-  avisoExtra,
-  aoAlterarSenha,
-}: EcraLoginProps & { avisoExtra: string; aoAlterarSenha: () => void }) {
+function FormularioLogin({ aoEntrar, aoPrever }: EcraLoginProps) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
@@ -280,12 +218,6 @@ function FormularioLogin({
           </button>
         </div>
         {LIGACAO_SEGURA}
-        {avisoExtra ? (
-          <div className="acesso-sucesso" role="status">
-            {ICONE_OK}
-            <p>{avisoExtra}</p>
-          </div>
-        ) : null}
         {erro ? (
           <div id="login-erro" ref={erroRef} tabIndex={-1} className="acesso-alerta" role="alert">
             {ICONE_ALERTA}
@@ -296,11 +228,10 @@ function FormularioLogin({
           {aEnviar ? 'A autenticar…' : 'Entrar no Sistema'}
           {aEnviar ? null : <span aria-hidden="true">→</span>}
         </button>
-        <button type="button" className="acesso-ligacao" onClick={aoAlterarSenha}>
-          Alterar senha
-        </button>
+        <p className="nota acesso-ajuda-senha">
+          Para alterar a senha, entre na conta e use <strong>Alterar senha</strong> no menu do perfil.
+        </p>
       </form>
-      <p className="acesso-rodape">© {ANO} UEM · Fitossanidade</p>
     </div>
   );
 }

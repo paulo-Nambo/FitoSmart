@@ -394,7 +394,8 @@ export async function criarOcorrencia(ocorrencia: Ocorrencia): Promise<void> {
 
 export async function listarOcorrencias(perfil: Perfil, email: string | null): Promise<Ocorrencia[]> {
   const ligacao = obterPool();
-  const verTodas = podeVerTodasOcorrencias(perfil) || email === null;
+  // Nunca promover "sem email" a visão global — só o perfil autoriza.
+  const verTodas = podeVerTodasOcorrencias(perfil);
   if (!ligacao) {
     if (verTodas) return [...ocorrenciasMemoria];
     return ocorrenciasMemoria.filter((item) => item.autorEmail === email);

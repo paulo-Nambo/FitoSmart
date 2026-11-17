@@ -16,7 +16,6 @@ import {
 import { PainelEstatisticas } from './painel-estatisticas';
 import { VistaMapaOcorrencias } from './vista-mapa-ocorrencias';
 
-const NOTA_PAINEL = <p className="nota">Totais da fila. O menu abre os casos por rever.</p>;
 const NOTA_MIN = 3;
 const NOTA_MAX = 500;
 
@@ -273,7 +272,6 @@ export function EcraTecnico({ menu, token, ocorrencias, aoValidar }: EcraTecnico
     <>
       <section hidden={menu !== 'painel'}>
         <h1 className="titulo">Painel</h1>
-        {NOTA_PAINEL}
         {menu === 'painel' ? <PainelEstatisticas ocorrencias={ocorrencias} /> : null}
       </section>
       {menu === 'fila' ? (

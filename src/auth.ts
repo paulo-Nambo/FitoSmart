@@ -65,10 +65,15 @@ export function identificarPedido(req: Request): Identidade | null {
     }
   }
 
-  const cabecalho = req.headers['x-user-role'];
-  const papel = Array.isArray(cabecalho) ? cabecalho[0] : cabecalho;
-  if (ePerfil(papel)) {
-    return { perfil: papel, email: null };
+  // Apenas em testes automatizados — em produção/Render o JWT é obrigatório.
+  const modoTeste =
+    process.env.NODE_ENV === 'test' || process.env.FITOSMART_TEST_AUTH === '1';
+  if (modoTeste) {
+    const cabecalho = req.headers['x-user-role'];
+    const papel = Array.isArray(cabecalho) ? cabecalho[0] : cabecalho;
+    if (ePerfil(papel)) {
+      return { perfil: papel, email: null };
+    }
   }
   return null;
 }
@@ -112,20 +117,25 @@ export async function loginHandler(req: Request, res: Response): Promise<void> {
   });
 }
 
-/** Alterar senha com a senha actual (não revela se o email existe). */
+/** Alterar senha — exige sessão JWT; o email vem só do token. */
 export async function alterarSenhaHandler(req: Request, res: Response): Promise<void> {
   const identidade = identificarPedido(req);
+  if (!identidade?.email) {
+    res.status(401).json({ erro: 'Sessão inválida. Entre na conta para alterar a senha.' });
+    return;
+  }
+
+  const email = identidade.email;
   const emailCorpo = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  const email = identidade?.email ?? emailCorpo;
   const senhaActual = typeof req.body?.senhaActual === 'string' ? req.body.senhaActual : '';
   const senhaNova = typeof req.body?.senhaNova === 'string' ? req.body.senhaNova : '';
 
-  if (identidade?.email && emailCorpo && emailCorpo !== identidade.email) {
+  if (emailCorpo && emailCorpo !== email) {
     res.status(403).json({ erro: 'Só pode alterar a senha da sua própria conta.' });
     return;
   }
 
-  if (!emailValido(email) || !senhaValida(senhaActual)) {
+  if (!senhaValida(senhaActual)) {
     res.status(401).json({ erro: 'Credenciais inválidas' });
     return;
   }

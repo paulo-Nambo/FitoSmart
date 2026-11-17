@@ -70,38 +70,44 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
     const actual = CONTA_ADMIN_SISTEMA.senha;
     const proxima = 'OutraSenha2!';
 
-    const fraca = await request(app).post('/api/conta/senha').send({
+    const semSessao = await request(app).post('/api/conta/senha').send({
       email,
       senhaActual: actual,
-      senhaNova: 'fraca1',
-    });
-    expect(fraca.status).toBe(400);
-
-    const falha = await request(app).post('/api/conta/senha').send({
-      email,
-      senhaActual: 'errada1',
       senhaNova: proxima,
     });
+    expect(semSessao.status).toBe(401);
+
+    const login = await request(app).post('/api/login').send({ email, senha: actual });
+    expect(login.status).toBe(200);
+    const token = login.body.token as string;
+
+    const fraca = await request(app)
+      .post('/api/conta/senha')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ senhaActual: actual, senhaNova: 'fraca1' });
+    expect(fraca.status).toBe(400);
+
+    const falha = await request(app)
+      .post('/api/conta/senha')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ senhaActual: 'errada1', senhaNova: proxima });
     expect(falha.status).toBe(401);
 
-    try {
-      const ok = await request(app).post('/api/conta/senha').send({
-        email,
-        senhaActual: actual,
-        senhaNova: proxima,
-      });
-      expect(ok.status).toBe(200);
-      expect(ok.body.ok).toBe(true);
+    const ok = await request(app)
+      .post('/api/conta/senha')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ senhaActual: actual, senhaNova: proxima });
+    expect(ok.status).toBe(200);
+    expect(ok.body.ok).toBe(true);
 
-      const loginNova = await request(app).post('/api/login').send({ email, senha: proxima });
-      expect(loginNova.status).toBe(200);
-    } finally {
-      await request(app).post('/api/conta/senha').send({
-        email,
-        senhaActual: proxima,
-        senhaNova: actual,
-      });
-    }
+    const loginNova = await request(app).post('/api/login').send({ email, senha: proxima });
+    expect(loginNova.status).toBe(200);
+
+    const restaurar = await request(app)
+      .post('/api/conta/senha')
+      .set('Authorization', `Bearer ${loginNova.body.token}`)
+      .send({ senhaActual: proxima, senhaNova: actual });
+    expect(restaurar.status).toBe(200);
   });
 
   test('T04 [Fronteira]: Deve emitir erro para Latitude > 90', () => {
@@ -129,6 +135,7 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
   test('T06 [Regra]: Deve bloquear registro de ocorrência sem sintomas', async () => {
     const res = await request(app)
       .post('/api/ocorrencias')
+      .set('x-user-role', 'AGRICULTOR')
       .send({ cultura: 'Mandioca', sintomas: [], latitude: -25.7, longitude: 32.6 });
 
     expect(res.status).toBe(400);

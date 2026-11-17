@@ -26,7 +26,7 @@ export const GraficoEstados = memo(function GraficoEstados({ ocorrencias }: { oc
   const assinatura = `${dados[0].total}-${dados[1].total}-${dados[2].total}`;
 
   return (
-    <section className="cartao painel-grafico" aria-label="Gráfico dos estados">
+    <section className="painel-grafico" aria-label="Gráfico dos estados">
       <h2 className="titulo">Estados</h2>
       <BarChart
         data={dados}

@@ -115,7 +115,11 @@ function lerReferenciaId(valor: unknown): string | null | undefined {
 
 export async function registrarOcorrenciaHandler(req: Request, res: Response): Promise<void> {
   const identidadeRegisto = identificarPedido(req);
-  if (identidadeRegisto && !podeRegistarOcorrencia(identidadeRegisto.perfil)) {
+  if (!identidadeRegisto) {
+    res.status(401).json({ erro: 'Autenticação necessária' });
+    return;
+  }
+  if (!podeRegistarOcorrencia(identidadeRegisto.perfil)) {
     res.status(403).json({ erro: 'Acesso negado: o seu perfil não regista ocorrências' });
     return;
   }

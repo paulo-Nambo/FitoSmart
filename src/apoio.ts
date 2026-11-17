@@ -6,8 +6,10 @@ import {
   criarPedidoApoio,
   listarPedidosApoio,
   listarRankingTecnicos,
+  listarTecnicosDisponiveis,
   obterPedidoApoio,
   obterOcorrencia,
+  procurarUtilizador,
 } from './base';
 import { identificarPedido } from './auth';
 import {
@@ -92,6 +94,9 @@ export async function criarPedidoHandler(req: Request, res: Response) {
   const ocorrenciaBruta =
     typeof req.body?.ocorrenciaId === 'string' ? req.body.ocorrenciaId.trim() : '';
   const ocorrenciaId = ocorrenciaBruta.length > 0 ? ocorrenciaBruta : null;
+  const tecnicoBruto =
+    typeof req.body?.tecnicoEmail === 'string' ? req.body.tecnicoEmail.trim().toLowerCase() : '';
+  const tecnicoEmail = tecnicoBruto.length > 0 ? tecnicoBruto : null;
 
   if (assunto.length < ASSUNTO_MIN) {
     res.status(400).json({ erro: `Assunto deve ter pelo menos ${ASSUNTO_MIN} caracteres` });
@@ -112,13 +117,37 @@ export async function criarPedidoHandler(req: Request, res: Response) {
     return;
   }
 
+  if (tecnicoEmail) {
+    const tecnico = await procurarUtilizador(tecnicoEmail);
+    if (!tecnico || !podeAtenderPedidoApoio(tecnico.perfil)) {
+      res.status(400).json({ erro: 'Técnico/agronómio inválido para atribuição' });
+      return;
+    }
+  }
+
   const pedido = await criarPedidoApoio({
     assunto,
     autorEmail: identidade.email,
     ocorrenciaId,
     mensagem,
+    tecnicoEmail,
   });
-  res.status(201).json({ pedido, mensagem: 'Pedido de apoio enviado aos técnicos.' });
+  res.status(201).json({
+    pedido,
+    mensagem: tecnicoEmail
+      ? 'Pedido de apoio atribuído ao técnico seleccionado.'
+      : 'Pedido de apoio enviado aos técnicos.',
+  });
+}
+
+export async function listarTecnicosHandler(req: Request, res: Response) {
+  const identidade = identificarPedido(req);
+  if (!identidade?.email || !podeUsarPedidosApoio(identidade.perfil)) {
+    res.status(401).json({ erro: 'Autenticação necessária' });
+    return;
+  }
+  const tecnicos = await listarTecnicosDisponiveis();
+  res.json({ tecnicos });
 }
 
 export async function responderPedidoHandler(req: Request, res: Response) {

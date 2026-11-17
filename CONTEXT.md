@@ -37,7 +37,7 @@ Resultado de análise de imagem (motor OpenEPI / Ollama / Gemini / fallback loca
 _Avoid_: Ocorrência, triagem
 
 **Pedido de apoio**:
-Canal de mensagens entre Agricultor e Técnico/Gestor sobre uma Ocorrência concreta, com estados ABERTO → EM_ATENDIMENTO → ENCERRADO. Todo pedido referencia uma Ocorrência.
+Canal de mensagens entre Agricultor e Técnico/Gestor sobre uma Ocorrência concreta, com estados ABERTO → EM_ATENDIMENTO → ENCERRADO. Todo pedido referencia uma Ocorrência e pode opcionalmente atribuir um Técnico/agronómio concreto.
 _Avoid_: Ticket, chat genérico, issue, suporte IT
 
 **Avaliação do técnico**:

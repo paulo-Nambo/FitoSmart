@@ -347,13 +347,22 @@ export function obterPedidoApoio(token: string, id: string) {
 
 export function criarPedidoApoio(
   token: string,
-  corpo: { assunto: string; mensagem: string; ocorrenciaId?: string | null },
+  corpo: {
+    assunto: string;
+    mensagem: string;
+    ocorrenciaId?: string | null;
+    tecnicoEmail?: string | null;
+  },
 ) {
   return pedido<{ pedido: PedidoApoio; mensagem?: string }>(
     '/api/pedidos',
     { method: 'POST', body: JSON.stringify(corpo) },
     token,
   );
+}
+
+export function listarTecnicos(token: string) {
+  return pedido<{ tecnicos: Conta[] }>('/api/tecnicos', {}, token);
 }
 
 export function responderPedidoApoio(token: string, id: string, mensagem: string) {

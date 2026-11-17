@@ -9,6 +9,7 @@ import {
   avaliarPedidoHandler,
   criarPedidoHandler,
   listarPedidosHandler,
+  listarTecnicosHandler,
   obterPedidoHandler,
   rankingTecnicosHandler,
   responderPedidoHandler,
@@ -133,6 +134,7 @@ export function criarApp() {
   app.patch('/api/utilizadores/:email', actualizarPerfilHandler);
   app.get('/api/configuracao', obterConfiguracaoHandler);
   app.patch('/api/configuracao', actualizarConfiguracaoHandler);
+  app.get('/api/tecnicos', listarTecnicosHandler);
   app.get('/api/pedidos', listarPedidosHandler);
   app.post('/api/pedidos', limitePedidosApoio, criarPedidoHandler);
   app.get('/api/pedidos/:id', obterPedidoHandler);

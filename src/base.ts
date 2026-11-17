@@ -619,6 +619,12 @@ export async function listarUtilizadores(): Promise<ContaPublica[]> {
   );
 }
 
+/** Técnicos e gestores disponíveis para atribuição em pedidos de apoio. */
+export async function listarTecnicosDisponiveis(): Promise<ContaPublica[]> {
+  const todos = await listarUtilizadores();
+  return todos.filter((conta) => conta.perfil === 'TECNICO' || conta.perfil === 'GESTOR');
+}
+
 export async function criarUtilizador(conta: Conta): Promise<void> {
   const ligacao = obterPool();
   if (!ligacao) {
@@ -815,16 +821,18 @@ export async function criarPedidoApoio(entrada: {
   autorEmail: string;
   ocorrenciaId: string | null;
   mensagem: string;
+  tecnicoEmail?: string | null;
 }): Promise<PedidoApoio> {
   const agora = new Date().toISOString();
   const pedidoId = randomUUID();
   const mensagemId = randomUUID();
+  const tecnicoEmail = entrada.tecnicoEmail?.trim() || null;
   const pedido: PedidoApoio = {
     id: pedidoId,
     assunto: entrada.assunto,
     estado: 'ABERTO',
     autorEmail: entrada.autorEmail,
-    tecnicoEmail: null,
+    tecnicoEmail,
     ocorrenciaId: entrada.ocorrenciaId,
     criadoEm: agora,
     actualizadoEm: agora,
@@ -848,8 +856,8 @@ export async function criarPedidoApoio(entrada: {
   await ligacao.query(
     `INSERT INTO pedidos_apoio
       (id, assunto, estado, autor_email, tecnico_email, ocorrencia_id, criado_em, actualizado_em)
-     VALUES ($1, $2, 'ABERTO', $3, NULL, $4, $5, $5)`,
-    [pedidoId, entrada.assunto, entrada.autorEmail, entrada.ocorrenciaId, agora],
+     VALUES ($1, $2, 'ABERTO', $3, $4, $5, $6, $6)`,
+    [pedidoId, entrada.assunto, entrada.autorEmail, tecnicoEmail, entrada.ocorrenciaId, agora],
   );
   await ligacao.query(
     `INSERT INTO pedido_mensagens (id, pedido_id, autor_email, corpo, criado_em)

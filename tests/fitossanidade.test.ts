@@ -257,6 +257,14 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
       });
     expect(semOcorrencia.status).toBe(400);
 
+    const listaTecnicos = await request(app)
+      .get('/api/tecnicos')
+      .set('Authorization', `Bearer ${agr.body.token}`);
+    expect(listaTecnicos.status).toBe(200);
+    expect(listaTecnicos.body.tecnicos.some((t: { email: string }) => t.email === 'tecnico.apoio@uem.mz')).toBe(
+      true,
+    );
+
     const criado = await request(app)
       .post('/api/pedidos')
       .set('Authorization', `Bearer ${agr.body.token}`)
@@ -264,9 +272,11 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
         assunto: 'Folhas amarelas no milho',
         mensagem: 'Apareceram manchas após a última chuva. Preciso de orientação.',
         ocorrenciaId: ocorrencia.body.ocorrencia.id,
+        tecnicoEmail: 'tecnico.apoio@uem.mz',
       });
     expect(criado.status).toBe(201);
     expect(criado.body.pedido.ocorrenciaId).toBe(ocorrencia.body.ocorrencia.id);
+    expect(criado.body.pedido.tecnicoEmail).toBe('tecnico.apoio@uem.mz');
     expect(criado.body.pedido.estado).toBe('ABERTO');
     expect(criado.body.pedido.mensagens).toHaveLength(1);
 

@@ -3497,6 +3497,7 @@ input[aria-invalid='true']:focus-visible {
 
 .apoio-novo input,
 .apoio-novo textarea,
+.apoio-novo select,
 .apoio-resposta textarea {
   width: 100%;
   border: 1px solid var(--linha-forte);
@@ -3509,6 +3510,7 @@ input[aria-invalid='true']:focus-visible {
 
 .apoio-novo input:focus,
 .apoio-novo textarea:focus,
+.apoio-novo select:focus,
 .apoio-resposta textarea:focus {
   outline: none;
   border-color: color-mix(in srgb, var(--folha) 55%, var(--linha-forte));

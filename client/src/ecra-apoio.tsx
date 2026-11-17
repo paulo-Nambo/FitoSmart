@@ -5,15 +5,17 @@ import {
   criarPedidoApoio,
   ErroApi,
   listarPedidosApoio,
+  listarTecnicos,
   obterPedidoApoio,
   responderPedidoApoio,
+  type Conta,
   type EstadoPedidoApoio,
   type Estrelas,
   type Ocorrencia,
   type PedidoApoio,
 } from './api';
 import { rotuloSintoma } from './cartao-ocorrencia';
-import { podeAtenderPedidoApoio, podeCriarPedidoApoio, type Perfil } from './perfis';
+import { podeAtenderPedidoApoio, podeCriarPedidoApoio, ROTULO_PERFIL, type Perfil } from './perfis';
 
 const ASSUNTO_MIN = 3;
 const ASSUNTO_MAX = 120;
@@ -93,8 +95,11 @@ export function EcraApoio({
   const [assunto, setAssunto] = useState('');
   const [mensagemNova, setMensagemNova] = useState('');
   const [ocorrenciaId, setOcorrenciaId] = useState('');
+  const [tecnicoEmail, setTecnicoEmail] = useState('');
+  const [tecnicos, setTecnicos] = useState<Conta[]>([]);
   const [filtroOcorrencia, setFiltroOcorrencia] = useState<string | null>(null);
   const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoPedidoApoio>('todos');
+  const [filtroMeus, setFiltroMeus] = useState(false);
   const [resposta, setResposta] = useState('');
   const [estrelas, setEstrelas] = useState<Estrelas | 0>(0);
   const [comentarioAvaliacao, setComentarioAvaliacao] = useState('');
@@ -129,12 +134,24 @@ export function EcraApoio({
     return base;
   }, [pedidos]);
 
+  const nomeTecnico = useCallback(
+    (email: string | null | undefined) => {
+      if (!email) return null;
+      const conta = tecnicos.find((item) => item.email === email);
+      return conta?.nome?.trim() || email;
+    },
+    [tecnicos],
+  );
+
   const pedidosVisiveis = useMemo(() => {
     let lista = pedidos;
     if (filtroOcorrencia) lista = lista.filter((item) => item.ocorrenciaId === filtroOcorrencia);
     if (filtroEstado !== 'todos') lista = lista.filter((item) => item.estado === filtroEstado);
+    if (filtroMeus && podeAtender) {
+      lista = lista.filter((item) => item.tecnicoEmail === email);
+    }
     return lista;
-  }, [pedidos, filtroOcorrencia, filtroEstado]);
+  }, [pedidos, filtroOcorrencia, filtroEstado, filtroMeus, podeAtender, email]);
 
   const seleccionadoOcorrencia = useMemo(() => {
     if (!seleccionado?.ocorrenciaId) return null;
@@ -151,7 +168,13 @@ export function EcraApoio({
   useEffect(() => {
     let ativo = true;
     setCarregar(true);
-    refrescar()
+    Promise.all([
+      refrescar(),
+      listarTecnicos(token).catch(() => ({ tecnicos: [] as Conta[] })),
+    ])
+      .then(([, dadosTecnicos]) => {
+        if (ativo) setTecnicos(dadosTecnicos.tecnicos);
+      })
       .catch((falha) => {
         if (!ativo) return;
         setErro(falha instanceof ErroApi ? falha.message : 'Não foi possível carregar os pedidos.');
@@ -162,7 +185,7 @@ export function EcraApoio({
     return () => {
       ativo = false;
     };
-  }, [refrescar]);
+  }, [refrescar, token]);
 
   const abrir = useCallback(
     async (id: string) => {
@@ -258,6 +281,7 @@ export function EcraApoio({
     setAssunto('');
     setMensagemNova('');
     setOcorrenciaId(filtroOcorrencia ?? '');
+    setTecnicoEmail('');
     setMostrarNovo(false);
   };
 
@@ -272,6 +296,7 @@ export function EcraApoio({
         assunto: assuntoOk,
         mensagem: mensagemOk,
         ocorrenciaId,
+        tecnicoEmail: tecnicoEmail || null,
       });
       setFiltroOcorrencia(ocorrenciaId);
       limparFormulario();
@@ -385,6 +410,15 @@ export function EcraApoio({
           >
             Encerrados <strong>{contagens.ENCERRADO}</strong>
           </button>
+          {podeAtender ? (
+            <button
+              type="button"
+              className={filtroMeus ? 'apoio-chip apoio-chip-activo' : 'apoio-chip'}
+              onClick={() => setFiltroMeus((atual) => !atual)}
+            >
+              Atribuídos a mim
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -491,6 +525,26 @@ export function EcraApoio({
           ) : null}
 
           <label className="apoio-campo">
+            <span>Técnico / agronómio (opcional)</span>
+            <select
+              value={tecnicoEmail}
+              onChange={(evento) => setTecnicoEmail(evento.target.value)}
+            >
+              <option value="">Qualquer técnico disponível</option>
+              {tecnicos.map((item) => (
+                <option key={item.email} value={item.email}>
+                  {(item.nome || item.email).trim()} · {ROTULO_PERFIL[item.perfil]}
+                </option>
+              ))}
+            </select>
+            {tecnicos.length === 0 ? (
+              <span className="nota">Ainda não há técnicos na plataforma — o pedido fica aberto a qualquer um.</span>
+            ) : (
+              <span className="nota">Se escolher alguém, o pedido fica atribuído a essa pessoa.</span>
+            )}
+          </label>
+
+          <label className="apoio-campo">
             <span>Assunto</span>
             <input
               value={assunto}
@@ -588,6 +642,9 @@ export function EcraApoio({
                         <strong>{item.assunto}</strong>
                         <span className="meta">
                           {ligada ? `${ligada.cultura}` : 'Sem ocorrência'}
+                          {item.tecnicoEmail
+                            ? ` · ${nomeTecnico(item.tecnicoEmail) ?? item.tecnicoEmail}`
+                            : ' · Sem técnico'}
                           {podeAtender || perfil === 'ADMIN_SISTEMA'
                             ? ` · ${item.autorEmail}`
                             : ''}
@@ -619,7 +676,9 @@ export function EcraApoio({
                       </span>
                       {' · '}
                       {seleccionado.autorEmail}
-                      {seleccionado.tecnicoEmail ? ` · Técnico: ${seleccionado.tecnicoEmail}` : ''}
+                      {seleccionado.tecnicoEmail
+                        ? ` · Técnico: ${nomeTecnico(seleccionado.tecnicoEmail) ?? seleccionado.tecnicoEmail}`
+                        : ' · Sem técnico atribuído'}
                     </p>
                   </div>
                   {podeAtender ? (

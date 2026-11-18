@@ -377,7 +377,7 @@ export function urlDoMenu(id: MenuId, extras?: Record<string, string | null | un
   const params = new URLSearchParams(window.location.search);
   params.delete('idle');
   if (id !== 'apoio') params.delete('ocorrencia');
-  if (id !== 'ocorrencias') params.delete('destacar');
+  if (id !== 'ocorrencias' && id !== 'fila') params.delete('destacar');
   if (id === 'painel') params.delete('menu');
   else params.set('menu', id);
   if (extras) {

@@ -1,4 +1,4 @@
-import { memo, startTransition, useCallback, useId, useMemo, useState } from 'react';
+import { memo, startTransition, useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { validarOcorrencia, type Ocorrencia } from './api';
 import { CartaoOcorrencia } from './cartao-ocorrencia';
 import type { MenuId } from './barra-lateral';
@@ -24,6 +24,7 @@ interface EcraTecnicoProps {
   token: string;
   ocorrencias: Ocorrencia[];
   aoValidar: (ocorrencia: Ocorrencia) => void;
+  destacarId?: string | null;
 }
 
 const LinhaFila = memo(function LinhaFila({
@@ -31,11 +32,13 @@ const LinhaFila = memo(function LinhaFila({
   ocorrencia,
   pendente,
   aoValidar,
+  destacado = false,
 }: {
   token: string;
   ocorrencia: Ocorrencia;
   pendente: boolean;
   aoValidar: (id: string, nota: string) => void;
+  destacado?: boolean;
 }) {
   const [nota, setNota] = useState('');
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -48,6 +51,7 @@ const LinhaFila = memo(function LinhaFila({
         token={token}
         ocorrencia={ocorrencia}
         variante="fila"
+        destacado={destacado}
         acao={
           precisaValidacao ? (
             <div className="fila-validacao">
@@ -122,12 +126,14 @@ const FilaTecnica = memo(function FilaTecnica({
   erro,
   aValidar,
   aoValidar,
+  destacarId = null,
 }: {
   token: string;
   ocorrencias: Ocorrencia[];
   erro: string | null;
   aValidar: string | null;
   aoValidar: (id: string, nota: string) => void;
+  destacarId?: string | null;
 }) {
   const tituloId = useId();
   const filtrosId = useId();
@@ -135,9 +141,20 @@ const FilaTecnica = memo(function FilaTecnica({
   const [pesquisa, setPesquisa] = useState('');
   const [vista, setVista] = useState<'lista' | 'mapa'>('lista');
   const filtradasEstado = porPrioridade(filtrarEstado(ocorrencias, filtro));
-  const visiveis = useMemo(() => filtrarPesquisa(filtradasEstado, pesquisa), [filtradasEstado, pesquisa]);
+  const visiveis = useMemo(() => {
+    const base = filtrarPesquisa(filtradasEstado, pesquisa);
+    if (!destacarId) return base;
+    return [...base].sort((a, b) => Number(b.id === destacarId) - Number(a.id === destacarId));
+  }, [filtradasEstado, pesquisa, destacarId]);
   const contagens = contarEstados(ocorrencias);
   const pendentes = contagens.ENCAMINHADA;
+
+  useEffect(() => {
+    if (!destacarId) return;
+    setVista('lista');
+    const alvo = document.getElementById(`ocorrencia-${destacarId}`);
+    alvo?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [destacarId, visiveis]);
 
   const escolherFiltro = useCallback(
     (proximo: Parameters<typeof escolher>[0]) => {
@@ -293,6 +310,7 @@ const FilaTecnica = memo(function FilaTecnica({
               ocorrencia={item}
               pendente={aValidar === item.id}
               aoValidar={aoValidar}
+              destacado={item.id === destacarId}
             />
           ))}
         </ul>
@@ -301,7 +319,13 @@ const FilaTecnica = memo(function FilaTecnica({
   );
 });
 
-export function EcraTecnico({ menu, token, ocorrencias, aoValidar }: EcraTecnicoProps) {
+export function EcraTecnico({
+  menu,
+  token,
+  ocorrencias,
+  aoValidar,
+  destacarId = null,
+}: EcraTecnicoProps) {
   const [erro, setErro] = useState<string | null>(null);
   const [aValidar, setAValidar] = useState<string | null>(null);
 
@@ -331,7 +355,14 @@ export function EcraTecnico({ menu, token, ocorrencias, aoValidar }: EcraTecnico
         {menu === 'painel' ? <PainelEstatisticas ocorrencias={ocorrencias} /> : null}
       </section>
       {menu === 'fila' ? (
-        <FilaTecnica token={token} ocorrencias={ocorrencias} erro={erro} aValidar={aValidar} aoValidar={validar} />
+        <FilaTecnica
+          token={token}
+          ocorrencias={ocorrencias}
+          erro={erro}
+          aValidar={aValidar}
+          aoValidar={validar}
+          destacarId={destacarId}
+        />
       ) : null}
     </>
   );

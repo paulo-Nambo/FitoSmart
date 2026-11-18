@@ -359,83 +359,111 @@ export function EcraApoio({
     assunto.trim().length >= ASSUNTO_MIN &&
     mensagemNova.trim().length >= CORPO_MIN;
 
+  const abertosActivos = contagens.ABERTO + contagens.EM_ATENDIMENTO;
+
   return (
     <section className="apoio-ecra" aria-labelledby={tituloId}>
-      <header className="lista-cabeca">
-        <div className="lista-cabeca-texto">
+      <header className="apoio-cabeca">
+        <div className="apoio-cabeca-texto">
           <h1 id={tituloId} className="titulo">
             Pedidos de apoio
           </h1>
+          {!carregar && !semOcorrencias ? (
+            <p className="nota lista-total">
+              {pedidosVisiveis.length === 1
+                ? '1 conversa visível'
+                : `${pedidosVisiveis.length} conversas visíveis`}
+            </p>
+          ) : null}
         </div>
-        {podeCriar && !semOcorrencias ? (
-          <button
-            type="button"
-            className={mostrarNovo ? 'secundario' : 'primario'}
-            onClick={() => (mostrarNovo ? limparFormulario() : iniciarNovo())}
-          >
-            {mostrarNovo ? 'Fechar formulário' : 'Novo pedido'}
-          </button>
-        ) : null}
+
+        <div className="apoio-cabeca-accoes">
+          {!carregar && !semOcorrencias ? (
+            <div
+              className={
+                abertosActivos > 0 ? 'fila-estado-pill' : 'fila-estado-pill fila-estado-pill-ok'
+              }
+              aria-live="polite"
+            >
+              <span className="fila-estado-pill-ponto" aria-hidden="true" />
+              <div className="fila-estado-pill-texto">
+                <strong>
+                  {abertosActivos > 0
+                    ? abertosActivos === 1
+                      ? '1 em curso'
+                      : `${abertosActivos} em curso`
+                    : 'Nada pendente'}
+                </strong>
+                <span>
+                  {contagens.ABERTO} abertos · {contagens.EM_ATENDIMENTO} em atendimento ·{' '}
+                  {contagens.ENCERRADO} encerrados
+                </span>
+              </div>
+            </div>
+          ) : null}
+
+          {podeCriar && !semOcorrencias ? (
+            <div className="fila-toolbar">
+              <button
+                type="button"
+                className={mostrarNovo ? 'secundario apoio-botao-cabeca' : 'primario apoio-botao-cabeca'}
+                onClick={() => (mostrarNovo ? limparFormulario() : iniciarNovo())}
+              >
+                {mostrarNovo ? 'Fechar' : 'Novo pedido'}
+              </button>
+            </div>
+          ) : null}
+        </div>
       </header>
 
       {!carregar && !semOcorrencias ? (
-        <div className="apoio-resumo" role="group" aria-label="Resumo dos pedidos">
-          <button
-            type="button"
-            className={filtroEstado === 'todos' ? 'apoio-chip apoio-chip-activo' : 'apoio-chip'}
-            onClick={() => setFiltroEstado('todos')}
-          >
-            Todos <strong>{contagens.total}</strong>
-          </button>
-          <button
-            type="button"
-            className={filtroEstado === 'ABERTO' ? 'apoio-chip apoio-chip-activo' : 'apoio-chip'}
-            onClick={() => setFiltroEstado('ABERTO')}
-          >
-            Abertos <strong>{contagens.ABERTO}</strong>
-          </button>
-          <button
-            type="button"
-            className={
-              filtroEstado === 'EM_ATENDIMENTO' ? 'apoio-chip apoio-chip-activo' : 'apoio-chip'
-            }
-            onClick={() => setFiltroEstado('EM_ATENDIMENTO')}
-          >
-            Em atendimento <strong>{contagens.EM_ATENDIMENTO}</strong>
-          </button>
-          <button
-            type="button"
-            className={filtroEstado === 'ENCERRADO' ? 'apoio-chip apoio-chip-activo' : 'apoio-chip'}
-            onClick={() => setFiltroEstado('ENCERRADO')}
-          >
-            Encerrados <strong>{contagens.ENCERRADO}</strong>
-          </button>
-          {podeAtender ? (
-            <button
-              type="button"
-              className={filtroMeus ? 'apoio-chip apoio-chip-activo' : 'apoio-chip'}
-              onClick={() => setFiltroMeus((atual) => !atual)}
-            >
-              Atribuídos a mim
-            </button>
-          ) : null}
+        <div className="apoio-filtros" role="group" aria-label="Filtrar pedidos">
+          <div className="apoio-resumo">
+            {(
+              [
+                ['todos', 'Todos', contagens.total],
+                ['ABERTO', 'Abertos', contagens.ABERTO],
+                ['EM_ATENDIMENTO', 'Em atendimento', contagens.EM_ATENDIMENTO],
+                ['ENCERRADO', 'Encerrados', contagens.ENCERRADO],
+              ] as const
+            ).map(([id, rotulo, valor]) => (
+              <button
+                key={id}
+                type="button"
+                className={filtroEstado === id ? 'apoio-chip apoio-chip-activo' : 'apoio-chip'}
+                onClick={() => setFiltroEstado(id)}
+              >
+                {rotulo} <strong>{valor}</strong>
+              </button>
+            ))}
+            {podeAtender ? (
+              <button
+                type="button"
+                className={filtroMeus ? 'apoio-chip apoio-chip-activo' : 'apoio-chip'}
+                onClick={() => setFiltroMeus((atual) => !atual)}
+              >
+                Atribuídos a mim
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
       {ocorrenciaFiltro ? (
         <div className="apoio-filtro-ocorrencia">
-          <div>
-            <p className="apoio-ocorrencia-rotulo">A ver só esta ocorrência</p>
+          <div className="apoio-filtro-ocorrencia-texto">
+            <p className="apoio-ocorrencia-rotulo">Filtrado por ocorrência</p>
             <p>
               <strong>{ocorrenciaFiltro.cultura}</strong>
-              {' · '}
-              {ROTULO_STATUS_OCORRENCIA[ocorrenciaFiltro.status]}
-              {' · '}
-              {formatarQuando(ocorrenciaFiltro.criadaEm)}
+              <span className="meta">
+                {' '}
+                · {ROTULO_STATUS_OCORRENCIA[ocorrenciaFiltro.status]} ·{' '}
+                {formatarQuando(ocorrenciaFiltro.criadaEm)}
+              </span>
             </p>
           </div>
           <button type="button" className="secundario" onClick={() => setFiltroOcorrencia(null)}>
-            Limpar filtro
+            Ver todos
           </button>
         </div>
       ) : null}

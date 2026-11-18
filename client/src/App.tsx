@@ -198,13 +198,21 @@ export function App() {
 
   const verOcorrencia = useCallback(
     (ocorrenciaId: string) => {
-      escolherMenu('ocorrencias', { destacar: ocorrenciaId });
+      if (!sessao) return;
+      if (eMenuPermitido(sessao.perfil, 'ocorrencias')) {
+        escolherMenu('ocorrencias', { destacar: ocorrenciaId });
+        return;
+      }
+      if (eMenuPermitido(sessao.perfil, 'fila')) {
+        escolherMenu('fila', { destacar: ocorrenciaId });
+      }
     },
-    [escolherMenu],
+    [escolherMenu, sessao],
   );
 
   const ocorrenciaApoio = menu === 'apoio' ? lerParametroUrl('ocorrencia') : null;
-  const destacarOcorrencia = menu === 'ocorrencias' ? lerParametroUrl('destacar') : null;
+  const destacarOcorrencia =
+    menu === 'ocorrencias' || menu === 'fila' ? lerParametroUrl('destacar') : null;
 
   if (sessao === null) {
     return <EcraLogin aoEntrar={setSessao} aoPrever={preverEcra} />;
@@ -237,7 +245,13 @@ export function App() {
           ) : menu === 'config' && podeConfigurar(sessao.perfil) ? (
             <EcraConfig token={sessao.token} />
           ) : menu === 'fila' && podeValidar(sessao.perfil) ? (
-            <EcraTecnico menu={menu} token={sessao.token} ocorrencias={ocorrencias} aoValidar={validar} />
+            <EcraTecnico
+              menu={menu}
+              token={sessao.token}
+              ocorrencias={ocorrencias}
+              aoValidar={validar}
+              destacarId={destacarOcorrencia}
+            />
           ) : menu === 'apoio' && podeUsarPedidosApoio(sessao.perfil) ? (
             <EcraApoio
               token={sessao.token}

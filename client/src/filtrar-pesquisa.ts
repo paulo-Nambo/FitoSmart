@@ -22,6 +22,7 @@ export function filtrarPesquisa(ocorrencias: Ocorrencia[], pesquisa: string): Oc
         item.parcelaNome ?? '',
         item.referenciaRotulo ?? '',
         item.autorEmail ?? '',
+        item.autorNome ?? '',
         item.status,
         item.notaValidacao ?? '',
         item.validadaPor ?? '',

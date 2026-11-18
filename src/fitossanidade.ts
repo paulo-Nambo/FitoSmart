@@ -8,6 +8,7 @@ import {
   marcarValidada,
   obterOcorrencia,
   obterOuCriarParcela,
+  procurarUtilizador,
   reporEstado as reporBase,
   ultimaEncaminhada,
 } from './base';
@@ -187,6 +188,13 @@ export async function registrarOcorrenciaHandler(req: Request, res: Response): P
     }
   }
 
+  let autorNome: string | null = null;
+  if (identidade?.email) {
+    const titular = await procurarUtilizador(identidade.email);
+    const nome = titular?.nome?.trim();
+    autorNome = nome || null;
+  }
+
   const ocorrencia: Ocorrencia = {
     id: randomUUID(),
     cultura,
@@ -196,6 +204,7 @@ export async function registrarOcorrenciaHandler(req: Request, res: Response): P
     confianca: triagem.confianca,
     status: triagem.status,
     autorEmail: identidade?.email ?? null,
+    autorNome,
     criadaEm: new Date().toISOString(),
     imagens: [],
     parcelaId,

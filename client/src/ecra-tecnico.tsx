@@ -100,7 +100,16 @@ const LinhaFila = memo(function LinhaFila({
                 </button>
               )}
             </div>
-          ) : null
+          ) : (
+            <div className="fila-estado-resumo">
+              <span className={`fila-estado-ponto fila-estado-ponto-${ocorrencia.status.toLowerCase()}`} />
+              <p>
+                {ocorrencia.status === 'VALIDADA'
+                  ? 'Validação concluída — sem acção pendente.'
+                  : 'Triagem automática estável — sem validação urgente.'}
+              </p>
+            </div>
+          )
         }
       />
     </li>

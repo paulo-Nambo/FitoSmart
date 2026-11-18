@@ -43,6 +43,8 @@ export interface Ocorrencia {
   confianca: number;
   status: EstadoOcorrencia;
   autorEmail: string | null;
+  /** Nome do titular da conta autora, quando conhecido. */
+  autorNome: string | null;
   criadaEm: string;
   imagens: string[];
   parcelaId: string | null;

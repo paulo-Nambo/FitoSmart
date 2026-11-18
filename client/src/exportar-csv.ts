@@ -44,7 +44,7 @@ export function exportarOcorrenciasCsv(ocorrencias: Ocorrencia[], nomeFicheiro =
       celula(item.longitude),
       celula(item.parcelaNome),
       celula(item.referenciaRotulo),
-      celula(item.autorEmail),
+      celula(item.autorNome || item.autorEmail),
       celula(item.criadaEm),
       celula(item.validadaEm),
       celula(item.validadaPor),

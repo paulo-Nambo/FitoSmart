@@ -23,6 +23,7 @@ export interface Ocorrencia {
   confianca: number;
   status: 'TRIADA' | 'ENCAMINHADA' | 'VALIDADA';
   autorEmail: string | null;
+  autorNome: string | null;
   criadaEm: string;
   imagens: string[];
   parcelaId: string | null;

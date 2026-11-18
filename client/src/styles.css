@@ -1534,6 +1534,20 @@ a.ligacao:focus-visible,
 .primario:disabled { opacity: 0.7; cursor: progress; }
 .secundario { background: var(--papel); border: 1px solid var(--linha); color: var(--tinta); font-weight: 550; }
 .secundario:hover { background: #eef5f1; border-color: var(--linha-forte); }
+a.secundario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0.55rem 0.95rem;
+  border-radius: 10px;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+a.secundario:focus-visible {
+  outline: 2px solid var(--folha);
+  outline-offset: 2px;
+}
 .chip {
   display: inline-flex;
   align-items: center;
@@ -1686,28 +1700,55 @@ a.ligacao:focus-visible,
 
 .fila-linha {
   content-visibility: auto;
-  contain-intrinsic-size: 0 168px;
+  contain-intrinsic-size: 0 280px;
 }
 
-.fila-linha-urgente .item-fila {
+.fila-linha-urgente .item-fila,
+.item-fila-prioritaria {
   border-color: rgba(154, 103, 0, 0.28);
   background: linear-gradient(180deg, #fffdf8 0%, var(--papel) 42%);
   box-shadow: inset 3px 0 0 var(--ambar), var(--sombra);
 }
 
 .item-fila {
-  padding: 1rem 1.1rem 1.05rem;
-  border-radius: 16px;
-  transition: border-color 160ms ease-out, box-shadow 160ms ease-out;
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.05rem 1.15rem 1.1rem;
+  border-radius: 18px;
+  transition: border-color 160ms ease-out, box-shadow 160ms ease-out, transform 120ms ease-out;
 }
 
 .item-fila:hover {
   border-color: var(--linha-forte);
+  transform: translateY(-1px);
+}
+
+.item-fila .item-placeholder,
+.item-fila .item-fotos {
+  min-height: 7.5rem;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.item-fila .item-placeholder {
+  display: grid;
+  place-items: center;
+  gap: 0.2rem;
+  align-content: center;
+}
+
+.item-fila .item-placeholder small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.7;
 }
 
 .item-fila .item-factos-fila {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem 0.85rem;
   margin-top: 0.75rem;
 }
 
@@ -1727,6 +1768,101 @@ a.ligacao:focus-visible,
 .item-fila .item-rodape .primario {
   min-width: 10rem;
   margin-top: 0;
+}
+
+.item-relativo {
+  color: var(--mutado);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.item-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.item-kpi {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.65rem 0.7rem;
+  border-radius: 12px;
+  background: #f3f7f4;
+  border: 1px solid var(--linha);
+  min-width: 0;
+}
+
+.item-kpi-rotulo {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #4f5f56;
+}
+
+.item-kpi strong {
+  font-size: 0.95rem;
+  line-height: 1.2;
+  color: var(--folha-escura);
+}
+
+.item-kpi-meta {
+  font-size: 0.75rem;
+  color: var(--mutado);
+}
+
+.progresso-severidade span {
+  background: linear-gradient(90deg, #d4a017, #9a6700);
+}
+
+.selo-prioridade {
+  background: #fff3d6;
+  color: #7a5a00;
+}
+
+.item-dica-fila {
+  margin-top: 0.75rem;
+  background: color-mix(in srgb, var(--folha) 6%, #fff);
+  border-color: color-mix(in srgb, var(--folha) 18%, var(--linha));
+}
+
+.fila-estado-resumo {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  margin: 0;
+  color: #4f5f56;
+  font-size: 0.88rem;
+}
+
+.fila-estado-resumo p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.fila-estado-ponto {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  flex: none;
+  background: var(--folha);
+}
+
+.fila-estado-ponto-validada { background: #175cd3; }
+.fila-estado-ponto-triada { background: var(--folha); }
+.fila-estado-ponto-encaminhada { background: var(--ambar); }
+
+@media (max-width: 720px) {
+  .item-fila {
+    grid-template-columns: 1fr;
+  }
+
+  .item-kpis,
+  .item-fila .item-factos-fila {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .item-sem-sintomas { margin: 0.45rem 0 0; }
@@ -3050,11 +3186,15 @@ input[aria-invalid='true']:focus-visible {
 }
 
 .item-historico-accoes {
-  margin-top: 0.45rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
 }
 
 .item-historico-botao {
   font-size: 0.9rem;
+  margin: 0;
 }
 
 .item-historico {

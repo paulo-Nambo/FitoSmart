@@ -44,6 +44,26 @@ function formatarData(iso: string): string {
   return DATA.format(data);
 }
 
+function tempoRelativo(iso: string): string {
+  const data = new Date(iso);
+  if (Number.isNaN(data.getTime())) return '';
+  const minutos = Math.round((Date.now() - data.getTime()) / 60_000);
+  if (minutos < 1) return 'agora';
+  if (minutos < 60) return `há ${minutos} min`;
+  const horas = Math.round(minutos / 60);
+  if (horas < 24) return `há ${horas} h`;
+  const dias = Math.round(horas / 24);
+  if (dias === 1) return 'há 1 dia';
+  if (dias < 30) return `há ${dias} dias`;
+  return formatarData(iso);
+}
+
+const ORIENTACAO_FILA: Record<Ocorrencia['status'], string> = {
+  TRIADA: 'Triagem automática concluída. Confirme no mapa e acompanhe o talhão se a severidade subir.',
+  ENCAMINHADA: 'Prioridade: confiança baixa. Reveja sintomas, foto e valide com nota de campo.',
+  VALIDADA: 'Caso já confirmado por técnico. Use o histórico para o rasto da decisão.',
+};
+
 export function ligaMapa(latitude: number, longitude: number): string {
   const lat = latitude.toFixed(5);
   const lng = longitude.toFixed(5);
@@ -167,17 +187,18 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
 }) {
   const [mostrarHistorico, setMostrarHistorico] = useState(false);
   const quando = formatarData(ocorrencia.criadaEm);
+  const relativo = tempoRelativo(ocorrencia.criadaEm);
   const fotos = ocorrencia.imagens ?? [];
   const mapa = ligaMapa(ocorrencia.latitude, ocorrencia.longitude);
   const local = `${COORDENADA.format(ocorrencia.latitude)}, ${COORDENADA.format(ocorrencia.longitude)}`;
   const fila = variante === 'fila';
-  const comVisual = fotos.length > 0 || !fila;
   const classes = [
     'item',
     `estado-${ocorrencia.status.toLowerCase()}`,
-    comVisual ? 'item-com-foto' : '',
+    'item-com-foto',
     fila ? 'item-fila' : '',
     destacado ? 'item-destacado' : '',
+    fila && ocorrencia.status === 'ENCAMINHADA' ? 'item-fila-prioritaria' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -186,11 +207,12 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
     <article className={classes} id={destacado ? `ocorrencia-${ocorrencia.id}` : undefined}>
       {fotos.length > 0 ? (
         <GaleriaFotos token={token} id={ocorrencia.id} nomes={fotos} />
-      ) : !fila ? (
+      ) : (
         <div className="item-placeholder" aria-hidden="true">
           <span>{ocorrencia.cultura.slice(0, 2).toLocaleUpperCase('pt')}</span>
+          {fila ? <small>Sem foto</small> : null}
         </div>
-      ) : null}
+      )}
       <div className="item-corpo">
         <header className="item-cabeca">
           <div className="item-titulo">
@@ -200,8 +222,16 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
             {ocorrencia.parcelaNome ? (
               <span className="item-parcela quebrar">{ocorrencia.parcelaNome}</span>
             ) : null}
+            {fila && relativo ? (
+              <span className="item-relativo">
+                Registada <time dateTime={ocorrencia.criadaEm}>{relativo}</time>
+              </span>
+            ) : null}
           </div>
           <div className="item-selos">
+            {fila && ocorrencia.status === 'ENCAMINHADA' ? (
+              <span className="selo selo-prioridade">Prioridade</span>
+            ) : null}
             <span className="selo">{ROTULO_ESTADO[ocorrencia.status]}</span>
             {pedidosApoio > 0 ? (
               <span className="selo selo-apoio">
@@ -210,6 +240,57 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
             ) : null}
           </div>
         </header>
+
+        {fila ? (
+          <div className="item-kpis" aria-label="Indicadores da ocorrência">
+            <div className="item-kpi">
+              <span className="item-kpi-rotulo">Confiança</span>
+              <strong className="numero">{PERCENTAGEM.format(ocorrencia.confianca)}%</strong>
+              <div
+                className="progresso"
+                role="meter"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={ocorrencia.confianca}
+                aria-label={`Confiança ${PERCENTAGEM.format(ocorrencia.confianca)} por cento`}
+              >
+                <span style={{ width: `${ocorrencia.confianca}%` }} />
+              </div>
+            </div>
+            <div className="item-kpi">
+              <span className="item-kpi-rotulo">Severidade</span>
+              <strong>
+                {ocorrencia.severidade != null
+                  ? `${ocorrencia.severidade}/5 · ${rotuloSeveridade(ocorrencia.severidade)}`
+                  : '—'}
+              </strong>
+              <div
+                className="progresso progresso-severidade"
+                role="meter"
+                aria-valuemin={0}
+                aria-valuemax={5}
+                aria-valuenow={ocorrencia.severidade ?? 0}
+                aria-label={
+                  ocorrencia.severidade != null
+                    ? `Severidade ${ocorrencia.severidade} em 5`
+                    : 'Severidade não indicada'
+                }
+              >
+                <span
+                  style={{
+                    width: `${ocorrencia.severidade != null ? (ocorrencia.severidade / 5) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+            </div>
+            <div className="item-kpi">
+              <span className="item-kpi-rotulo">Fotos</span>
+              <strong>{fotos.length}</strong>
+              <span className="item-kpi-meta">{fotos.length === 1 ? 'imagem' : 'imagens'}</span>
+            </div>
+          </div>
+        ) : null}
+
         {ocorrencia.sintomas.length > 0 ? (
           <ul className="item-sintomas">
             {ocorrencia.sintomas.map((id) => (
@@ -221,6 +302,7 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
         ) : (
           <p className="nota item-sem-sintomas">Sem sintomas assinalados</p>
         )}
+
         <dl className={fila ? 'item-factos item-factos-fila' : 'item-factos'}>
           {quando ? (
             <div>
@@ -246,11 +328,13 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
               </dd>
             </div>
           ) : null}
-          <div>
-            <dt>Confiança</dt>
-            <dd className="numero">{PERCENTAGEM.format(ocorrencia.confianca)}&nbsp;%</dd>
-          </div>
-          {ocorrencia.severidade !== null && ocorrencia.severidade !== undefined ? (
+          {!fila ? (
+            <div>
+              <dt>Confiança</dt>
+              <dd className="numero">{PERCENTAGEM.format(ocorrencia.confianca)}&nbsp;%</dd>
+            </div>
+          ) : null}
+          {!fila && ocorrencia.severidade !== null && ocorrencia.severidade !== undefined ? (
             <div>
               <dt>Severidade</dt>
               <dd>
@@ -279,34 +363,54 @@ export const CartaoOcorrencia = memo(function CartaoOcorrencia({
               </a>
             </dd>
           </div>
-          {ocorrencia.autorEmail ? (
+          {ocorrencia.autorEmail || ocorrencia.autorNome ? (
             <div>
               <dt>{fila ? 'Agricultor' : 'Conta'}</dt>
-              <dd className="quebrar item-email" translate="no" title={ocorrencia.autorEmail}>
-                {ocorrencia.autorEmail}
+              <dd
+                className="quebrar item-email"
+                translate="no"
+                title={ocorrencia.autorEmail ?? undefined}
+              >
+                {(ocorrencia.autorNome ?? '').trim() || ocorrencia.autorEmail}
               </dd>
             </div>
           ) : null}
         </dl>
+
         {ocorrencia.notaValidacao ? (
           <blockquote className="item-nota-validacao">
             <p>{ocorrencia.notaValidacao}</p>
           </blockquote>
         ) : null}
-        <div className="item-confianca">
-          <div
-            className="progresso"
-            role="meter"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={ocorrencia.confianca}
-            aria-label={`Confiança da triagem: ${PERCENTAGEM.format(ocorrencia.confianca)} por cento`}
-          >
-            <span style={{ width: `${ocorrencia.confianca}%` }} />
+
+        {!fila ? (
+          <div className="item-confianca">
+            <div
+              className="progresso"
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={ocorrencia.confianca}
+              aria-label={`Confiança da triagem: ${PERCENTAGEM.format(ocorrencia.confianca)} por cento`}
+            >
+              <span style={{ width: `${ocorrencia.confianca}%` }} />
+            </div>
           </div>
-        </div>
-        {fila ? null : <p className="item-dica">{RECOMENDACAO[ocorrencia.status]}</p>}
+        ) : null}
+
+        <p className={fila ? 'item-dica item-dica-fila' : 'item-dica'}>
+          {fila ? ORIENTACAO_FILA[ocorrencia.status] : RECOMENDACAO[ocorrencia.status]}
+        </p>
+
         <div className="item-historico-accoes">
+          <a
+            className="secundario item-historico-botao"
+            href={mapa}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Abrir mapa
+          </a>
           <button
             type="button"
             className="secundario item-historico-botao"

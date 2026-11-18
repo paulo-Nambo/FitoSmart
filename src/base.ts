@@ -282,6 +282,12 @@ function mapear(linha: QueryResultRow): Ocorrencia {
     confianca: Number(linha.confianca),
     status: linha.status as Ocorrencia['status'],
     autorEmail: linha.autor_email === null || linha.autor_email === undefined ? null : String(linha.autor_email),
+    autorNome: (() => {
+      if (linha.autor_nome !== null && linha.autor_nome !== undefined && String(linha.autor_nome).trim()) {
+        return String(linha.autor_nome).trim();
+      }
+      return null;
+    })(),
     criadaEm: new Date(linha.criada_em as string).toISOString(),
     imagens: Array.isArray(linha.imagens) ? linha.imagens.map(String) : [],
     parcelaId: linha.parcela_id === null || linha.parcela_id === undefined ? null : String(linha.parcela_id),
@@ -306,6 +312,14 @@ function mapear(linha: QueryResultRow): Ocorrencia {
   };
 }
 
+function enriquecerAutorNome(ocorrencia: Ocorrencia): Ocorrencia {
+  if (ocorrencia.autorNome || !ocorrencia.autorEmail) return ocorrencia;
+  const conta = utilizadoresMemoria.find((item) => item.email === ocorrencia.autorEmail);
+  const nome = conta?.nome?.trim();
+  if (!nome) return ocorrencia;
+  return { ...ocorrencia, autorNome: nome };
+}
+
 function mapearEvento(linha: QueryResultRow): EventoOcorrencia {
   return {
     id: String(linha.id),
@@ -324,11 +338,13 @@ function mapearEvento(linha: QueryResultRow): EventoOcorrencia {
 const COLUNAS_OCORRENCIA = `o.id, o.cultura, o.sintomas, o.latitude, o.longitude, o.confianca, o.status,
   o.autor_email, o.criada_em, o.imagens, o.parcela_id, o.referencia_id, o.severidade, o.validada_em,
   o.nota_validacao, o.validada_por,
-  p.nome AS parcela_nome, r.rotulo AS referencia_rotulo`;
+  p.nome AS parcela_nome, r.rotulo AS referencia_rotulo,
+  NULLIF(TRIM(u.nome), '') AS autor_nome`;
 
 const FROM_OCORRENCIA = `ocorrencias o
   LEFT JOIN parcelas p ON p.id = o.parcela_id
-  LEFT JOIN referencias_entradas r ON r.id = o.referencia_id`;
+  LEFT JOIN referencias_entradas r ON r.id = o.referencia_id
+  LEFT JOIN utilizadores u ON u.email = o.autor_email`;
 
 function mapearParcela(linha: QueryResultRow): Parcela {
   return {
@@ -501,8 +517,10 @@ export async function listarOcorrencias(perfil: Perfil, email: string | null): P
   // Nunca promover "sem email" a visão global — só o perfil autoriza.
   const verTodas = podeVerTodasOcorrencias(perfil);
   if (!ligacao) {
-    if (verTodas) return [...ocorrenciasMemoria];
-    return ocorrenciasMemoria.filter((item) => item.autorEmail === email);
+    const lista = verTodas
+      ? [...ocorrenciasMemoria]
+      : ocorrenciasMemoria.filter((item) => item.autorEmail === email);
+    return lista.map(enriquecerAutorNome);
   }
   if (verTodas) {
     const resultado = await ligacao.query(
@@ -521,7 +539,10 @@ export async function listarOcorrencias(perfil: Perfil, email: string | null): P
 
 export async function obterOcorrencia(id: string): Promise<Ocorrencia | undefined> {
   const ligacao = obterPool();
-  if (!ligacao) return ocorrenciasMemoria.find((item) => item.id === id);
+  if (!ligacao) {
+    const encontrada = ocorrenciasMemoria.find((item) => item.id === id);
+    return encontrada ? enriquecerAutorNome(encontrada) : undefined;
+  }
   const resultado = await ligacao.query(`SELECT ${COLUNAS_OCORRENCIA} FROM ${FROM_OCORRENCIA} WHERE o.id = $1`, [
     id,
   ]);
@@ -531,7 +552,10 @@ export async function obterOcorrencia(id: string): Promise<Ocorrencia | undefine
 
 export async function ultimaEncaminhada(): Promise<Ocorrencia | undefined> {
   const ligacao = obterPool();
-  if (!ligacao) return [...ocorrenciasMemoria].reverse().find((item) => item.status === 'ENCAMINHADA');
+  if (!ligacao) {
+    const encontrada = [...ocorrenciasMemoria].reverse().find((item) => item.status === 'ENCAMINHADA');
+    return encontrada ? enriquecerAutorNome(encontrada) : undefined;
+  }
   const resultado = await ligacao.query(
     `SELECT ${COLUNAS_OCORRENCIA} FROM ${FROM_OCORRENCIA}
      WHERE o.status = 'ENCAMINHADA' ORDER BY o.criada_em DESC LIMIT 1`,

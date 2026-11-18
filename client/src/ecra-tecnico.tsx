@@ -157,43 +157,90 @@ const FilaTecnica = memo(function FilaTecnica({
           </h1>
           <p className="nota lista-total">{rotuloLista(visiveis.length, ocorrencias.length, filtro)}</p>
         </div>
-        <div className="lista-cabeca-accoes">
-          {pendentes > 0 ? (
-            <p className="fila-badge" aria-live="polite">
-              <span className="fila-badge-ponto" aria-hidden="true" />
-              {pendentes === 1 ? '1 por validar' : `${pendentes} por validar`}
-            </p>
-          ) : (
-            <p className="fila-badge fila-badge-ok" aria-live="polite">
-              Fila em dia
-            </p>
-          )}
-          <div className="vista-toggle" role="group" aria-label="Vista da fila">
+        <div className="fila-cabeca-accoes" aria-label="Ferramentas da fila">
+          <div
+            className={pendentes > 0 ? 'fila-estado-pill' : 'fila-estado-pill fila-estado-pill-ok'}
+            aria-live="polite"
+          >
+            <span className="fila-estado-pill-ponto" aria-hidden="true" />
+            <div className="fila-estado-pill-texto">
+              <strong>{pendentes > 0 ? (pendentes === 1 ? '1 por validar' : `${pendentes} por validar`) : 'Fila em dia'}</strong>
+              <span>
+                {contagens.todas === 0
+                  ? 'Sem ocorrências'
+                  : `${contagens.TRIADA} triadas · ${contagens.VALIDADA} validadas`}
+              </span>
+            </div>
+          </div>
+
+          <div className="fila-toolbar">
+            <div className="vista-toggle" role="group" aria-label="Vista da fila">
+              <button
+                type="button"
+                className={vista === 'lista' ? 'vista-toggle-activo' : undefined}
+                aria-pressed={vista === 'lista'}
+                onClick={() => setVista('lista')}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M7 7h12M7 12h12M7 17h8"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                  />
+                  <circle cx="4.2" cy="7" r="1" fill="currentColor" />
+                  <circle cx="4.2" cy="12" r="1" fill="currentColor" />
+                  <circle cx="4.2" cy="17" r="1" fill="currentColor" />
+                </svg>
+                Lista
+              </button>
+              <button
+                type="button"
+                className={vista === 'mapa' ? 'vista-toggle-activo' : undefined}
+                aria-pressed={vista === 'mapa'}
+                onClick={() => setVista('mapa')}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M4.5 7.2l5-2.2 5 2.2 5-2.2v12.3l-5 2.2-5-2.2-5 2.2V7.2z"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinejoin="round"
+                  />
+                  <path d="M9.5 5v12.3M14.5 7.2V19.5" fill="none" stroke="currentColor" strokeWidth="1.75" />
+                </svg>
+                Mapa
+              </button>
+            </div>
+
             <button
               type="button"
-              className={vista === 'lista' ? 'vista-toggle-activo' : undefined}
-              aria-pressed={vista === 'lista'}
-              onClick={() => setVista('lista')}
+              className="secundario fila-exportar"
+              disabled={visiveis.length === 0}
+              onClick={() => exportarOcorrenciasCsv(visiveis, 'fila-tecnica-fitosmart.csv')}
             >
-              Lista
-            </button>
-            <button
-              type="button"
-              className={vista === 'mapa' ? 'vista-toggle-activo' : undefined}
-              aria-pressed={vista === 'mapa'}
-              onClick={() => setVista('mapa')}
-            >
-              Mapa
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 4.5v9.2M8.5 10.2L12 13.7l3.5-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M5.5 16.5v2.2A1.3 1.3 0 0 0 6.8 20h10.4a1.3 1.3 0 0 0 1.3-1.3v-2.2"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                />
+              </svg>
+              CSV
             </button>
           </div>
-          <button
-            type="button"
-            className="secundario"
-            disabled={visiveis.length === 0}
-            onClick={() => exportarOcorrenciasCsv(visiveis, 'fila-tecnica-fitosmart.csv')}
-          >
-            Exportar CSV
-          </button>
         </div>
       </header>
 

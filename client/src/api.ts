@@ -397,3 +397,51 @@ export function avaliarPedidoApoio(
 export function listarRankingTecnicos(token: string) {
   return pedido<{ ranking: RankingTecnico[] }>('/api/ranking/tecnicos', {}, token);
 }
+
+export type EstadoHidrico = 'SECO' | 'HUMIDO' | 'SATURADO' | 'CHUVOSO';
+export type JanelaPulverizacao = 'FAVORAVEL' | 'CONDICIONAL' | 'DESFAVORAVEL';
+
+export interface DiaOperacional {
+  dataIso: string;
+  estado: EstadoHidrico;
+  precipMm: number;
+  soloM3: number | null;
+  pressaoHpa: number | null;
+  deltaT: number | null;
+  janela: JanelaPulverizacao;
+  motivo: string;
+  probabilidadeMarkov: number;
+}
+
+export interface CelulaChuva {
+  lat: number;
+  lon: number;
+  precipMm: number;
+}
+
+export interface PainelOperacional {
+  local: string;
+  geradoEm: string;
+  fonte: string;
+  actual: {
+    temperaturaC: number | null;
+    humidadePct: number | null;
+    pressaoHpa: number | null;
+    deltaT: number | null;
+    ventoKmh: number | null;
+    soloM3: number | null;
+    janela: JanelaPulverizacao;
+    motivo: string;
+  };
+  memoriaAgricola: {
+    estadosObservados: EstadoHidrico[];
+    matrizTransicao: Record<EstadoHidrico, Record<EstadoHidrico, number>>;
+  };
+  janelas: DiaOperacional[];
+  mapaChuva: CelulaChuva[];
+  smsExemplo: string;
+}
+
+export function obterOperacional() {
+  return pedido<{ operacional: PainelOperacional }>('/api/operacional');
+}

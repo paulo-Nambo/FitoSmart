@@ -63,3 +63,23 @@ _Avoid_: Empresa, instituição (quando se refere ao campo da conta)
 **Perfil**:
 Papel único da Conta: AGRICULTOR (Worker), TECNICO (validação de campo), GESTOR (Manager), VISUALIZADOR (Viewer), ADMIN_CONTAS (Account Admin), ADMIN_CONFIG (Config Admin) ou ADMIN_SISTEMA (Administrador do sistema — gestão de contas e configuração). A conta de arranque é Paulo Baltazar (`paulo.baltazar@uem.mz`).
 _Avoid_: Role combinável, permissão solta, admin genérico, contas de demonstração
+
+**Janela operacional**:
+Intervalo em que a pulverização é FAVORAVEL, CONDICIONAL ou DESFAVORAVEL, segundo Delta-T, chuva, vento e estado hídrico do solo.
+_Avoid_: Slot genérico, availability, weather OK
+
+**Memória agrícola**:
+Sequência recente de estados hídricos (SECO / HUMIDO / SATURADO / CHUVOSO) usada pela cadeia de Markov para estimar persistência climática e acumulação hídrica.
+_Avoid_: Histórico genérico, cache, log meteorológico
+
+**Delta-T**:
+Diferença bulbo seco − bulbo húmido (°C); indica risco de evaporação (>10) ou deriva (<2) do defensivo.
+_Avoid_: Temperatura simples, feeling, heat index
+
+**Telemetria de pulverização**:
+Painel com pressão atmosférica (hPa), Delta-T, mapa de calor regional de chuva e janelas Markov para apoiar a decisão de pulverizar.
+_Avoid_: Dashboard IoT genérico, sensores de máquina
+
+**Alerta SMS 2G**:
+Resposta textual curta (≤160 caracteres) a comandos JANELA / DELTAT / CHUVA / PRESSAO, para acessibilidade em redes 2G sem app.
+_Avoid_: Push, WhatsApp, notificação in-app

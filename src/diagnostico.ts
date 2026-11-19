@@ -382,14 +382,17 @@ function hostOllama(): string | null {
 }
 
 function eModeloVisao(nome: string): boolean {
-  return /llava|vision|vl\b|moondream|minicpm|bakllava|gemma3|llama3\.2-vision/i.test(nome);
+  // Qwen 3.5+ é nativamente multimodal (sem sufixo -vl). Qwen2/3-VL usam "vl".
+  return /llava|vision|vl\b|moondream|minicpm|bakllava|gemma3|llama3\.2-vision|qwen3\.5|qwen3-5|qwen2\.5-vl|qwen2-vl|qwen3-vl/i.test(
+    nome,
+  );
 }
 
 async function listarModelosOllama(): Promise<string[]> {
   const host = hostOllama();
   if (!host) return [];
   try {
-    const resposta = await fetch(`${host}/api/tags`, { signal: AbortSignal.timeout(2500) });
+    const resposta = await fetch(`${host}/api/tags`, { signal: AbortSignal.timeout(8000) });
     if (!resposta.ok) return [];
     const corpo = (await resposta.json()) as { models?: Array<{ name?: string }> };
     return (corpo.models ?? []).map((item) => item.name).filter((nome): nome is string => Boolean(nome));
@@ -412,11 +415,30 @@ function resolverModeloOllama(configurado: string | undefined, modelos: string[]
 async function escolherModeloOllama(): Promise<{ modelo: string; visao: boolean } | null> {
   const modelos = await listarModelosOllama();
   const configurado = process.env.OLLAMA_MODEL?.trim();
+  if (modelos.length === 0) {
+    console.warn('[diagnostico] Ollama sem modelos (tags vazio ou host inacessível).');
+    return null;
+  }
   const candidato = resolverModeloOllama(configurado, modelos);
-  // Só modelos com visão — texto puro (ex. qwen3) não analisa a fotografia.
-  if (candidato && eModeloVisao(candidato)) return { modelo: candidato, visao: true };
+  // Só modelos com visão — texto puro (ex. qwen3 sem VL) não analisa a fotografia.
+  if (candidato && eModeloVisao(candidato)) {
+    if (configurado && candidato !== configurado && !candidato.startsWith(`${configurado}:`)) {
+      console.warn(
+        `[diagnostico] Modelo ${configurado} indisponível; a usar visão ${candidato}.`,
+      );
+    }
+    return { modelo: candidato, visao: true };
+  }
   const visao = modelos.find(eModeloVisao);
-  if (visao) return { modelo: visao, visao: true };
+  if (visao) {
+    if (configurado) {
+      console.warn(
+        `[diagnostico] ${configurado} não é visão ou não está instalado; a usar ${visao}.`,
+      );
+    }
+    return { modelo: visao, visao: true };
+  }
+  console.warn('[diagnostico] Nenhum modelo de visão no Ollama (ex.: llava, qwen3.5).');
   return null;
 }
 

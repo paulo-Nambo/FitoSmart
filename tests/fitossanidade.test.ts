@@ -9,6 +9,15 @@ import {
   validarCamposOcorrencia,
 } from '../src/fitossanidade';
 import { senhaNovaValida } from '../src/senha';
+import {
+  avaliarJanela,
+  calcularDeltaT,
+  classificarEstadoHidrico,
+  estimarMatrizTransicao,
+  responderSms,
+  truncarSms,
+  type PainelOperacional,
+} from '../src/operacional';
 
 const app = criarApp();
 
@@ -343,5 +352,42 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
       media: 5,
       total: 1,
     });
+  });
+
+  test('T15 [Campo]: Delta-T, Markov e SMS 2G para janela de pulverização', () => {
+    const delta = calcularDeltaT(30, 45);
+    expect(delta).toBeGreaterThan(2);
+    expect(classificarEstadoHidrico(3, 0.1)).toBe('CHUVOSO');
+    expect(classificarEstadoHidrico(0, 0.4)).toBe('SATURADO');
+    expect(avaliarJanela('SECO', 5, 0, 5).janela).toBe('FAVORAVEL');
+    expect(avaliarJanela('SECO', 12, 0, 5).janela).toBe('DESFAVORAVEL');
+
+    const matriz = estimarMatrizTransicao(['SECO', 'SECO', 'HUMIDO', 'CHUVOSO', 'HUMIDO']);
+    expect(matriz.SECO.SECO).toBeGreaterThan(0);
+    expect(truncarSms('a'.repeat(200)).length).toBeLessThanOrEqual(160);
+
+    const painelFake: PainelOperacional = {
+      local: 'Maputo',
+      geradoEm: new Date().toISOString(),
+      fonte: 'teste',
+      actual: {
+        temperaturaC: 30,
+        humidadePct: 45,
+        pressaoHpa: 1008,
+        deltaT: delta,
+        ventoKmh: 8,
+        soloM3: 0.12,
+        janela: 'FAVORAVEL',
+        motivo: 'ok',
+      },
+      memoriaAgricola: { estadosObservados: ['SECO'], matrizTransicao: matriz },
+      janelas: [],
+      mapaChuva: [{ lat: -25.966, lon: 32.583, precipMm: 0 }],
+      smsExemplo: 'x',
+    };
+    const sms = responderSms('JANELA', painelFake);
+    expect(sms).toMatch(/FitoSmart/);
+    expect(sms.length).toBeLessThanOrEqual(160);
+    expect(responderSms('AJUDA', painelFake)).toMatch(/JANELA/);
   });
 });

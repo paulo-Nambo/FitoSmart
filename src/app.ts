@@ -24,6 +24,7 @@ import {
 } from './fitossanidade';
 import { diagnosticoHandler } from './diagnostico';
 import { guardarImagemHandler, servirImagemHandler } from './imagens';
+import { operacionalHandler, smsHandler } from './operacional';
 import { servirReferenciaHandler } from './referencias-http';
 
 function limitePedidos(
@@ -142,6 +143,8 @@ export function criarApp() {
   app.patch('/api/pedidos/:id', actualizarPedidoHandler);
   app.post('/api/pedidos/:id/avaliacao', limitePedidosApoio, avaliarPedidoHandler);
   app.get('/api/ranking/tecnicos', rankingTecnicosHandler);
+  app.get('/api/operacional', operacionalHandler);
+  app.post('/api/sms', limitePedidos(30, janela15m), smsHandler);
 
   // Com DATABASE_URL: imagens vêm da BD; sem BD (ou miss): ficheiros em public/.
   app.get('/referencias/:entradaId/:nome', limiteReferencias, servirReferenciaHandler);

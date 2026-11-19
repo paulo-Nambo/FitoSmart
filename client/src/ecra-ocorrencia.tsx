@@ -760,10 +760,10 @@ const FormularioOcorrencia = memo(function FormularioOcorrencia({
             }`}
           >
             <p className="sintomas-foto-rotulo">
-              {diagnostico.hipotese || diagnostico.confianca < 60
-                ? 'Hipótese — por confirmar no talhão'
-                : diagnostico.motor === 'fitosmart'
-                  ? 'Hipótese local (a IA de visão não respondeu)'
+              {diagnostico.motor === 'fitosmart'
+                ? 'Hipótese local (a IA de visão não respondeu)'
+                : diagnostico.hipotese || diagnostico.confianca < 60
+                  ? 'Hipótese — por confirmar no talhão'
                   : 'Diagnóstico inteligente'}
             </p>
             <p className="diagnostico-praga">

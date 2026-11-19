@@ -60,7 +60,7 @@ export function podeCriarPedidoApoio(perfil: Perfil): boolean {
 }
 
 export function podeAtenderPedidoApoio(perfil: Perfil): boolean {
-  return perfil === 'TECNICO' || perfil === 'GESTOR';
+  return perfil === 'TECNICO' || perfil === 'GESTOR' || perfil === 'ADMIN_SISTEMA';
 }
 
 export function podeVerTodosPedidosApoio(perfil: Perfil): boolean {

@@ -59,9 +59,9 @@ export function podeCriarPedidoApoio(perfil: Perfil): boolean {
   return perfil === 'AGRICULTOR';
 }
 
-/** Técnico/gestor atendem e encerram pedidos de apoio. */
+/** Técnico, gestor e administrador do sistema atendem e encerram pedidos de apoio. */
 export function podeAtenderPedidoApoio(perfil: Perfil): boolean {
-  return perfil === 'TECNICO' || perfil === 'GESTOR';
+  return perfil === 'TECNICO' || perfil === 'GESTOR' || perfil === 'ADMIN_SISTEMA';
 }
 
 /** Vê todos os pedidos (não só os próprios). */

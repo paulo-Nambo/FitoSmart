@@ -1,4 +1,11 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useReducedMotion } from 'motion/react';
+import { Bar } from '@/components/charts/bar';
+import { BarChart } from '@/components/charts/bar-chart';
+import { BarXAxis } from '@/components/charts/bar-x-axis';
+import { chartCssVars } from '@/components/charts/chart-context';
+import { Grid } from '@/components/charts/grid';
+import { ChartTooltip } from '@/components/charts/tooltip/chart-tooltip';
 import type {
   CelulaChuva,
   DiaOperacional,
@@ -11,6 +18,9 @@ import {
   LOCAL_PREVISAO,
   type DiaPrevisao,
 } from './previsao-tempo';
+
+const MM = new Intl.NumberFormat('pt', { maximumFractionDigits: 1 });
+const ROTULOS_GRELHA = ['NO', 'N', 'NE', 'O', 'Centro', 'E', 'SO', 'S', 'SE'] as const;
 
 function faixaStyle(minima: number, maxima: number): CSSProperties {
   return {
@@ -31,18 +41,18 @@ function classeJanela(janela: JanelaPulverizacao): string {
   return 'op-janela-nao';
 }
 
-function dataCurta(dataIso: string): string {
-  return new Intl.DateTimeFormat('pt-PT', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'Africa/Maputo',
-  }).format(new Date(`${dataIso}T12:00:00`));
-}
-
-function CartaoDia({ dia }: { dia: DiaPrevisao }) {
+function CartaoDia({
+  dia,
+  operacional,
+}: {
+  dia: DiaPrevisao;
+  operacional?: DiaOperacional | null;
+}) {
   return (
-    <article className={dia.eHoje ? 'tempo-dia tempo-dia-hoje' : 'tempo-dia'}>
+    <article
+      className={dia.eHoje ? 'tempo-dia tempo-dia-hoje' : 'tempo-dia'}
+      title={operacional?.motivo}
+    >
       <header className="tempo-dia-cabeca">
         <p className="tempo-dia-nome">{dia.kind}</p>
         <p className="tempo-dia-data">{dia.meta.replace(`${LOCAL_PREVISAO} · `, '')}</p>
@@ -68,58 +78,66 @@ function CartaoDia({ dia }: { dia: DiaPrevisao }) {
           <span>{Math.round(dia.maxima)}°</span>
         </div>
       ) : null}
-      {dia.chuva !== null ? (
-        <p className="tempo-dia-chuva">Chuva {Math.round(dia.chuva)}%</p>
-      ) : null}
+      <footer className="tempo-dia-rodape">
+        {dia.chuva !== null ? <span>Chuva {Math.round(dia.chuva)}%</span> : <span />}
+        {operacional ? (
+          <span className={`op-pill ${classeJanela(operacional.janela)}`}>
+            {rotuloJanela(operacional.janela)}
+          </span>
+        ) : null}
+      </footer>
     </article>
   );
 }
 
-function MapaCalorChuva({ celulas }: { celulas: CelulaChuva[] }) {
-  const max = Math.max(0.1, ...celulas.map((c) => c.precipMm));
-  return (
-    <div className="op-mapa" role="img" aria-label="Mapa de calor regional de chuva">
-      {celulas.map((c) => {
-        const intensidade = Math.min(1, c.precipMm / max);
-        return (
-          <div
-            key={`${c.lat},${c.lon}`}
-            className="op-mapa-celula"
-            style={
-              {
-                '--chuva': String(intensidade),
-              } as CSSProperties
-            }
-            title={`${c.lat}, ${c.lon}: ${c.precipMm} mm`}
-          >
-            <span>{c.precipMm}</span>
-            <small>mm</small>
-          </div>
-        );
-      })}
-    </div>
+function GraficoChuvaRegional({ celulas }: { celulas: CelulaChuva[] }) {
+  const reduzido = useReducedMotion();
+  const dados = useMemo(
+    () =>
+      celulas.map((c, i) => ({
+        zona: ROTULOS_GRELHA[i] ?? `${c.lat}`,
+        precipMm: c.precipMm,
+        lat: c.lat,
+        lon: c.lon,
+      })),
+    [celulas],
   );
-}
+  const assinatura = dados.map((d) => d.precipMm).join('-');
 
-function ListaJanelas({ janelas }: { janelas: DiaOperacional[] }) {
   return (
-    <ul className="op-janelas">
-      {janelas.map((dia) => (
-        <li key={dia.dataIso} className={classeJanela(dia.janela)}>
-          <div>
-            <strong>{dataCurta(dia.dataIso)}</strong>
-            <span className="op-pill">{rotuloJanela(dia.janela)}</span>
-          </div>
-          <p>
-            {dia.estado} · {dia.precipMm} mm · solo{' '}
-            {dia.soloM3 !== null ? dia.soloM3.toFixed(2) : '—'} m³/m³
-            {dia.deltaT !== null ? ` · ΔT ${dia.deltaT} °C` : ''}
-            {dia.pressaoHpa !== null ? ` · ${dia.pressaoHpa} hPa` : ''}
-          </p>
-          <p className="op-motivo">{dia.motivo}</p>
-        </li>
-      ))}
-    </ul>
+    <div className="op-grafico-chuva" aria-label="Chuva regional em milímetros">
+      <BarChart
+        data={dados}
+        xDataKey="zona"
+        animationDuration={reduzido ? 0 : 1100}
+        revealSignature={assinatura}
+        aspectRatio="2.6 / 1"
+      >
+        <Grid horizontal />
+        <Bar
+          dataKey="precipMm"
+          fill={chartCssVars.linePrimary}
+          lineCap="round"
+          showValue
+          valueLabelFormatter={(valor) => MM.format(valor)}
+        />
+        <BarXAxis />
+        <ChartTooltip
+          rows={(ponto) => [
+            {
+              color: chartCssVars.linePrimary,
+              label: 'Chuva',
+              value: `${MM.format(Number(ponto.precipMm))} mm`,
+            },
+            {
+              color: chartCssVars.linePrimary,
+              label: 'Coord.',
+              value: `${ponto.lat}, ${ponto.lon}`,
+            },
+          ]}
+        />
+      </BarChart>
+    </div>
   );
 }
 
@@ -131,34 +149,46 @@ export function EcraTempo() {
   const aCarregar = dias === null && !erro;
 
   useEffect(() => {
-    const controlo = new AbortController();
-    carregarPrevisaoSemanaMaputo(controlo.signal)
+    let activo = true;
+    const controloTempo = new AbortController();
+    carregarPrevisaoSemanaMaputo(controloTempo.signal)
       .then((lista) => {
+        if (!activo) return;
         setDias(lista);
         setErro(null);
       })
       .catch(() => {
-        if (controlo.signal.aborted) return;
+        if (!activo || controloTempo.signal.aborted) return;
         setDias(null);
         setErro('Não foi possível carregar a previsão semanal. Verifique a ligação e tente novamente.');
       });
-    carregarPainelOperacional(controlo.signal)
+    carregarPainelOperacional()
       .then((painel) => {
+        if (!activo) return;
         setOperacional(painel);
         setErroOp(null);
       })
       .catch(() => {
-        if (controlo.signal.aborted) return;
+        if (!activo) return;
         setOperacional(null);
         setErroOp('Telemetria de pulverização indisponível de momento.');
       });
-    return () => controlo.abort();
+    return () => {
+      activo = false;
+      controloTempo.abort();
+    };
   }, []);
 
   const memoriaResumo = useMemo(() => {
     if (!operacional) return null;
-    const seq = operacional.memoriaAgricola.estadosObservados;
-    return seq.slice(-7).join(' → ');
+    return operacional.memoriaAgricola.estadosObservados.slice(-7);
+  }, [operacional]);
+
+  const janelaPorDia = useMemo(() => {
+    const mapa = new Map<string, DiaOperacional>();
+    if (!operacional) return mapa;
+    for (const item of operacional.janelas) mapa.set(item.dataIso, item);
+    return mapa;
   }, [operacional]);
 
   return (
@@ -166,9 +196,7 @@ export function EcraTempo() {
       <header className="lista-cabeca">
         <div>
           <h1 className="titulo">Previsão do tempo</h1>
-          <p className="nota">
-            Semana em {LOCAL_PREVISAO} · Open-Meteo · modelagem Markov + telemetria de pulverização · SMS 2G
-          </p>
+          <p className="tempo-local">{LOCAL_PREVISAO}</p>
         </div>
       </header>
 
@@ -184,22 +212,16 @@ export function EcraTempo() {
         <div className="tempo-grelha" role="list">
           {dias.map((dia) => (
             <div key={dia.id} role="listitem">
-              <CartaoDia dia={dia} />
+              <CartaoDia dia={dia} operacional={janelaPorDia.get(dia.dataIso) ?? null} />
             </div>
           ))}
         </div>
       ) : null}
 
       <section className="op-painel" aria-labelledby="op-titulo">
-        <header>
-          <h2 id="op-titulo" className="titulo">
-            Telemetria de pulverização
-          </h2>
-          <p className="nota">
-            Cadeia de Markov com memória agrícola, Delta-T, pressão (hPa) e mapa de calor de chuva.
-            Acessível também por SMS 2G (comandos JANELA, DELTAT, CHUVA, PRESSAO).
-          </p>
-        </header>
+        <h2 id="op-titulo" className="op-titulo">
+          Pulverização agora
+        </h2>
 
         {erroOp ? (
           <p className="alerta" role="alert">
@@ -207,76 +229,82 @@ export function EcraTempo() {
           </p>
         ) : null}
 
-        {!operacional && !erroOp ? <p className="nota">A calcular janelas operacionais…</p> : null}
+        {!operacional && !erroOp ? <p className="nota">A calcular janela operacional…</p> : null}
 
         {operacional ? (
           <>
             <div className={`op-agora ${classeJanela(operacional.actual.janela)}`}>
-              <p className="op-agora-rotulo">Agora em {operacional.local}</p>
-              <p className="op-agora-janela">{rotuloJanela(operacional.actual.janela)}</p>
-              <p className="op-motivo">{operacional.actual.motivo}</p>
+              <div className="op-agora-principal">
+                <p className="op-agora-rotulo">{operacional.local}</p>
+                <p className="op-agora-janela">{rotuloJanela(operacional.actual.janela)}</p>
+                <p className="op-motivo">{operacional.actual.motivo}</p>
+              </div>
               <dl className="op-metricas">
                 <div>
                   <dt>Delta-T</dt>
-                  <dd>{operacional.actual.deltaT !== null ? `${operacional.actual.deltaT} °C` : '—'}</dd>
+                  <dd>{operacional.actual.deltaT !== null ? `${operacional.actual.deltaT}°` : '—'}</dd>
                 </div>
                 <div>
                   <dt>Pressão</dt>
                   <dd>
                     {operacional.actual.pressaoHpa !== null
-                      ? `${operacional.actual.pressaoHpa} hPa`
+                      ? `${Math.round(operacional.actual.pressaoHpa)}`
                       : '—'}
+                    <span className="op-unidade">hPa</span>
                   </dd>
                 </div>
                 <div>
                   <dt>Humidade</dt>
                   <dd>
                     {operacional.actual.humidadePct !== null
-                      ? `${operacional.actual.humidadePct} %`
+                      ? `${operacional.actual.humidadePct}`
                       : '—'}
+                    <span className="op-unidade">%</span>
                   </dd>
                 </div>
                 <div>
                   <dt>Vento</dt>
                   <dd>
                     {operacional.actual.ventoKmh !== null
-                      ? `${operacional.actual.ventoKmh} km/h`
+                      ? `${Math.round(operacional.actual.ventoKmh)}`
                       : '—'}
+                    <span className="op-unidade">km/h</span>
                   </dd>
                 </div>
                 <div>
-                  <dt>Solo 0–7 cm</dt>
+                  <dt>Solo</dt>
                   <dd>
                     {operacional.actual.soloM3 !== null
-                      ? `${operacional.actual.soloM3.toFixed(2)} m³/m³`
+                      ? operacional.actual.soloM3.toFixed(2)
                       : '—'}
+                    <span className="op-unidade">m³</span>
                   </dd>
                 </div>
               </dl>
             </div>
 
-            <div className="op-bloco">
-              <h3 className="op-subtitulo">Memória agrícola (Markov)</h3>
-              <p className="nota">Últimos estados: {memoriaResumo}</p>
-              <ListaJanelas janelas={operacional.janelas} />
-            </div>
+            {memoriaResumo && memoriaResumo.length > 0 ? (
+              <div className="op-memoria" aria-label="Memória agrícola">
+                <span className="op-memoria-rotulo">Memória</span>
+                <ol className="op-memoria-lista">
+                  {memoriaResumo.map((estado, i) => (
+                    <li key={`${estado}-${i}`}>{estado}</li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
 
             <div className="op-bloco">
-              <h3 className="op-subtitulo">Mapa de calor regional — chuva (mm)</h3>
-              <MapaCalorChuva celulas={operacional.mapaChuva} />
+              <h3 className="op-subtitulo">Chuva regional</h3>
+              <GraficoChuvaRegional celulas={operacional.mapaChuva} />
             </div>
 
-            <div className="op-bloco op-sms">
-              <h3 className="op-subtitulo">Acesso SMS 2G</h3>
-              <p className="nota">
-                Gateway: <code>POST /api/sms</code> com corpo{' '}
-                <code>{`{ "texto": "JANELA" }`}</code>
-              </p>
+            <aside className="op-sms" aria-label="Exemplo SMS 2G">
+              <span className="op-sms-rotulo">SMS</span>
               <p className="op-sms-exemplo" translate="no">
                 {operacional.smsExemplo}
               </p>
-              <p className="nota">{operacional.fonte}</p>
-            </div>
+            </aside>
           </>
         ) : null}
       </section>

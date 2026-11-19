@@ -132,7 +132,7 @@ export async function carregarPainelOperacional(sinal?: AbortSignal): Promise<Pa
     'temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,soil_moisture_0_to_7cm,precipitation',
   );
 
-  const resposta = await fetch(url, { signal });
+  const resposta = await fetch(url, { signal: sinal });
   if (!resposta.ok) throw new Error('Open-Meteo indisponível');
   const corpo = (await resposta.json()) as {
     daily: {
@@ -217,38 +217,40 @@ export async function carregarPainelOperacional(sinal?: AbortSignal): Promise<Pa
     });
   }
 
+  // Grelha 3×3 sem partilhar o AbortSignal do React (Strict Mode abortava o painel).
+  const precipCentro = Math.round((daily.precipitation_sum?.[corte] ?? 0) * 10) / 10;
   const passo = 0.18;
-  const mapaPedidos: Array<Promise<CelulaChuva>> = [];
-  for (const dLat of [-passo, 0, passo]) {
-    for (const dLon of [-passo, 0, passo]) {
-      const la = LAT + dLat;
-      const lo = LON + dLon;
-      const u = new URL('https://api.open-meteo.com/v1/forecast');
-      u.searchParams.set('latitude', String(la));
-      u.searchParams.set('longitude', String(lo));
-      u.searchParams.set('timezone', FUSO);
-      u.searchParams.set('forecast_days', '1');
-      u.searchParams.set('daily', 'precipitation_sum');
-      mapaPedidos.push(
-        fetch(u, { signal })
-          .then(async (r) => {
-            if (!r.ok) return { lat: la, lon: lo, precipMm: 0 };
-            const j = (await r.json()) as { daily?: { precipitation_sum?: number[] } };
-            return {
-              lat: Math.round(la * 1000) / 1000,
-              lon: Math.round(lo * 1000) / 1000,
-              precipMm: Math.round((j.daily?.precipitation_sum?.[0] ?? 0) * 10) / 10,
-            };
-          })
-          .catch(() => ({
-            lat: Math.round(la * 1000) / 1000,
-            lon: Math.round(lo * 1000) / 1000,
-            precipMm: 0,
-          })),
-      );
-    }
-  }
-  const mapaChuva = await Promise.all(mapaPedidos);
+  const pontos = [-passo, 0, passo].flatMap((dLat) =>
+    [-passo, 0, passo].map((dLon) => ({
+      lat: Math.round((LAT + dLat) * 1000) / 1000,
+      lon: Math.round((LON + dLon) * 1000) / 1000,
+    })),
+  );
+  const mapaChuva: CelulaChuva[] = await Promise.all(
+    pontos.map(async ({ lat, lon }) => {
+      if (Math.abs(lat - LAT) < 0.001 && Math.abs(lon - LON) < 0.001) {
+        return { lat, lon, precipMm: precipCentro };
+      }
+      try {
+        const u = new URL('https://api.open-meteo.com/v1/forecast');
+        u.searchParams.set('latitude', String(lat));
+        u.searchParams.set('longitude', String(lon));
+        u.searchParams.set('timezone', FUSO);
+        u.searchParams.set('forecast_days', '1');
+        u.searchParams.set('daily', 'precipitation_sum');
+        const r = await fetch(u, { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) return { lat, lon, precipMm: precipCentro };
+        const j = (await r.json()) as { daily?: { precipitation_sum?: number[] } };
+        return {
+          lat,
+          lon,
+          precipMm: Math.round((j.daily?.precipitation_sum?.[0] ?? precipCentro) * 10) / 10,
+        };
+      } catch {
+        return { lat, lon, precipMm: precipCentro };
+      }
+    }),
+  );
 
   const smsExemplo = truncarSms(
     `FitoSmart ${LOCAL}: pulverizacao ${agora.janela}.${deltaT !== null ? ` DeltaT ${deltaT}C` : ''}${

@@ -390,13 +390,13 @@ export function EcraApoio({
                 <strong>
                   {abertosActivos > 0
                     ? abertosActivos === 1
-                      ? '1 em curso'
-                      : `${abertosActivos} em curso`
+                      ? '1 pendente'
+                      : `${abertosActivos} pendentes`
                     : 'Nada pendente'}
                 </strong>
                 <span>
-                  {contagens.ABERTO} abertos · {contagens.EM_ATENDIMENTO} em atendimento ·{' '}
-                  {contagens.ENCERRADO} encerrados
+                  {contagens.ABERTO} abertos · {contagens.EM_ATENDIMENTO} em atendimento
+                  {contagens.ENCERRADO > 0 ? ` · ${contagens.ENCERRADO} encerrados` : ''}
                 </span>
               </div>
             </div>
@@ -833,8 +833,12 @@ export function EcraApoio({
                       {pendente ? 'A enviar…' : 'Enviar'}
                     </button>
                   </form>
-                ) : (
+                ) : seleccionado.estado === 'ENCERRADO' ? (
                   <p className="nota apoio-encerrado">Este pedido está encerrado.</p>
+                ) : (
+                  <p className="nota apoio-encerrado">
+                    Só o agricultor autor ou um técnico/gestor podem responder a este pedido.
+                  </p>
                 )}
 
                 {seleccionado.estado === 'ENCERRADO' &&

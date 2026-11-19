@@ -784,7 +784,11 @@ function interpretarRespostaIa(
   };
 }
 
-/** /api/generate é o caminho nativo do LLaVA com imagens; /api/chat como reserva. */
+/** Qwen 3.5+ responde melhor em /api/chat; LLaVA prefere /api/generate. */
+function preferirChatOllama(modelo: string): boolean {
+  return /qwen3\.5|qwen3-5|qwen2\.5-vl|qwen2-vl|qwen3-vl/i.test(modelo);
+}
+
 async function chamarOllamaVisao(
   modelo: string,
   prompt: string,
@@ -792,49 +796,61 @@ async function chamarOllamaVisao(
 ): Promise<string | null> {
   const host = hostOllama();
   if (!host) return null;
-  const opcoes = { temperature: 0.05, num_predict: 320 };
-  const timeout = AbortSignal.timeout(150000);
+  const opcoes = { temperature: 0.05, num_predict: 280 };
+  const porChat = preferirChatOllama(modelo);
 
-  try {
-    const gerar = await fetch(`${host}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: modelo,
-        prompt,
-        images: [imagemBase64],
-        stream: false,
-        options: opcoes,
-      }),
-      signal: timeout,
-    });
-    if (gerar.ok) {
-      const corpo = (await gerar.json()) as { response?: string };
-      const texto = corpo.response?.trim();
-      if (texto) return texto;
+  const viaChat = async (): Promise<string | null> => {
+    try {
+      const chat = await fetch(`${host}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelo,
+          stream: false,
+          options: opcoes,
+          messages: [{ role: 'user', content: prompt, images: [imagemBase64] }],
+        }),
+        signal: AbortSignal.timeout(120000),
+      });
+      if (!chat.ok) return null;
+      const corpo = (await chat.json()) as { message?: { content?: string } };
+      return corpo.message?.content?.trim() || null;
+    } catch {
+      return null;
     }
-  } catch {
-    /* tenta chat abaixo */
+  };
+
+  const viaGenerate = async (): Promise<string | null> => {
+    try {
+      const gerar = await fetch(`${host}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelo,
+          prompt,
+          images: [imagemBase64],
+          stream: false,
+          options: opcoes,
+        }),
+        signal: AbortSignal.timeout(90000),
+      });
+      if (!gerar.ok) return null;
+      const corpo = (await gerar.json()) as { response?: string };
+      return corpo.response?.trim() || null;
+    } catch {
+      return null;
+    }
+  };
+
+  if (porChat) {
+    const texto = await viaChat();
+    if (texto) return texto;
+    return viaGenerate();
   }
 
-  try {
-    const chat = await fetch(`${host}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: modelo,
-        stream: false,
-        options: opcoes,
-        messages: [{ role: 'user', content: prompt, images: [imagemBase64] }],
-      }),
-      signal: AbortSignal.timeout(150000),
-    });
-    if (!chat.ok) return null;
-    const corpo = (await chat.json()) as { message?: { content?: string } };
-    return corpo.message?.content?.trim() || null;
-  } catch {
-    return null;
-  }
+  const texto = await viaGenerate();
+  if (texto) return texto;
+  return viaChat();
 }
 
 function diagnosticoVisaoFraco(diag: Diagnostico | null): boolean {
@@ -860,8 +876,9 @@ async function diagnosticarOllama(buffer: Buffer, culturaPreferida?: string): Pr
 
   const sinais = extrairSinais(buffer);
   const sintomas = sintomasVisuais(sinais);
-  const jpegVisao = reduzirJpegParaVisao(buffer, 896);
+  const jpegVisao = reduzirJpegParaVisao(buffer, 768);
   const imagem = jpegVisao.toString('base64');
+  const rapido = preferirChatOllama(escolhido.modelo);
 
   const tentarTexto = (prompt: string) => chamarOllamaVisao(escolhido.modelo, prompt, imagem);
   const tentarDiag = async (prompt: string) => {
@@ -870,59 +887,59 @@ async function diagnosticarOllama(buffer: Buffer, culturaPreferida?: string): Pr
     return interpretarRespostaIa(texto, 'ollama', sintomas, culturaPreferida);
   };
 
-  // 1) Descrever a lesão na foto — força o modelo a usar os píxeis.
-  const descricao = await tentarTexto(promptDescricaoVisao(culturaPreferida));
-  const notas = descricao && descricaoPareceVisao(descricao) ? descricao : undefined;
+  // Uma passagem principal (Qwen ~50s/chamada — várias passes esgotavam o timeout).
+  let diag = await tentarDiag(promptVisao(culturaPreferida));
 
-  // 2) Diagnóstico com a mesma imagem (+ notas visuais se existirem).
-  let diag = await tentarDiag(promptVisao(culturaPreferida, notas));
-
-  // 3) Passagem curta se ainda genérico / hipótese.
-  if (diagnosticoVisaoFraco(diag)) {
+  // Segunda passagem só se a primeira falhou por completo (não se for só hipótese).
+  if (!diag) {
+    diag = await tentarDiag(promptVisaoCurto(culturaPreferida));
+  } else if (!rapido && diagnosticoVisaoFraco(diag)) {
     const segunda = await tentarDiag(promptVisaoCurto(culturaPreferida));
-    if (segunda && !diagnosticoVisaoFraco(segunda)) {
-      diag = segunda;
-    } else if (
-      segunda &&
-      (!diag || (segunda.confianca >= (diag?.confianca ?? 0) && !nomePragaInutil(segunda.praga)))
-    ) {
+    if (segunda && (!diagnosticoVisaoFraco(segunda) || segunda.confianca >= (diag.confianca ?? 0))) {
       diag = segunda;
     }
   }
 
-  // 4) Se a descrição visual aponta queima/cigar e o JSON falhou, mapear directamente.
-  if (diagnosticoVisaoFraco(diag) && notas) {
-    const porDescricao = normalizarPragaConhecida(notas);
-    const cigarNecrose =
-      /cigar|elongat|grey[\s-]?brown|gray[\s-]?brown|necrotic\s+streak|lesão\s+along|lesao\s+along|faixa\s+castanh/i.test(
-        notas,
-      );
-    if (porDescricao || (cigarNecrose && culturaPreferida === 'Milho')) {
-      const praga = porDescricao?.praga ?? 'Queima foliar do milho';
-      const ciencia = porDescricao?.nomeCientifico ?? 'Exserohilum turcicum';
-      diag = {
-        praga,
-        nomeCientifico: ciencia,
-        culturaDetectada: culturaPreferida && CULTURAS.has(culturaPreferida) ? culturaPreferida : null,
-        sintomas: sintomas.length > 0 ? sintomas : ['manchas_amarelas', 'folhas_secas'],
-        confianca: 68,
-        recomendacao:
-          'Lesão alongada observada na fotografia. Confirme no talhão antes de tratar.',
-        motor: 'ollama',
-        resumo: `Visto na fotografia: ${notas.slice(0, 160)}`,
-        hipotese: false,
-        alternativas: [],
-        ...anexarReferencia({
+  // Recuperação leve via descrição só quando ainda não há praga útil.
+  if ((!diag || diagnosticoVisaoFraco(diag)) && !rapido) {
+    const descricao = await tentarTexto(promptDescricaoVisao(culturaPreferida));
+    const notas = descricao && descricaoPareceVisao(descricao) ? descricao : undefined;
+    if (notas) {
+      const porDescricao = normalizarPragaConhecida(notas);
+      const cigarNecrose =
+        /cigar|elongat|grey[\s-]?brown|gray[\s-]?brown|necrotic\s+streak|lesão\s+along|lesao\s+along|faixa\s+castanh/i.test(
+          notas,
+        );
+      if (porDescricao || (cigarNecrose && culturaPreferida === 'Milho')) {
+        const praga = porDescricao?.praga ?? 'Queima foliar do milho';
+        const ciencia = porDescricao?.nomeCientifico ?? 'Exserohilum turcicum';
+        diag = {
           praga,
           nomeCientifico: ciencia,
-          cultura: culturaPreferida && CULTURAS.has(culturaPreferida) ? culturaPreferida : null,
-          limite: 4,
-        }),
-      };
+          culturaDetectada: culturaPreferida && CULTURAS.has(culturaPreferida) ? culturaPreferida : null,
+          sintomas: sintomas.length > 0 ? sintomas : ['manchas_amarelas', 'folhas_secas'],
+          confianca: 68,
+          recomendacao:
+            'Lesão alongada observada na fotografia. Confirme no talhão antes de tratar.',
+          motor: 'ollama',
+          resumo: `Visto na fotografia: ${notas.slice(0, 160)}`,
+          hipotese: false,
+          alternativas: [],
+          ...anexarReferencia({
+            praga,
+            nomeCientifico: ciencia,
+            cultura: culturaPreferida && CULTURAS.has(culturaPreferida) ? culturaPreferida : null,
+            limite: 4,
+          }),
+        };
+      }
     }
   }
 
-  if (!diag) return null;
+  if (!diag) {
+    console.warn(`[diagnostico] Ollama (${escolhido.modelo}) sem resposta útil.`);
+    return null;
+  }
 
   if (diagnosticoVisaoFraco(diag)) {
     return {
@@ -1464,8 +1481,9 @@ export async function diagnosticarImagem(buffer: Buffer, culturaPreferida?: stri
     : Promise.resolve(null);
   // Kindwise também valida se a cultura da foto coincide com a seleccionada.
   const pedidoKindwise = comTempoLimite(diagnosticarKindwise(buffer, culturaPreferida), 12000);
+  // Qwen 3.5: 1 passagem ~1 min (arranque a frio); margem para não cair no fallback local.
   const pedidoOllama = hostOllama()
-    ? comTempoLimite(diagnosticarOllama(buffer, culturaPreferida), 150000)
+    ? comTempoLimite(diagnosticarOllama(buffer, culturaPreferida), 240000)
     : Promise.resolve(null);
 
   const [openepi, plantnet, kindwise] = await Promise.all([

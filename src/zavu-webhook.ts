@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { Request, Response } from 'express';
 import Zavudev from '@zavudev/sdk';
+import { obterPainelOperacional, responderSms, truncarSms } from './operacional';
 
 type CanalZavu =
   | 'sms'
@@ -26,6 +27,10 @@ interface EventoInboundZavu {
     messengerSenderId?: string;
   };
 }
+
+/** Eventos já processados (anti-retentativa Zavu). */
+const eventosVistos = new Set<string>();
+const MAX_EVENTOS_CACHE = 500;
 
 /** Verifica X-Zavu-Signature (v2 preferido; fallback v1). */
 export function verificarAssinaturaZavu(
@@ -63,8 +68,38 @@ function destinatarioResposta(data: EventoInboundZavu['data']): string | null {
   return data.from ?? null;
 }
 
+function marcarEventoProcessado(id: string): boolean {
+  if (!id) return true;
+  if (eventosVistos.has(id)) return false;
+  eventosVistos.add(id);
+  if (eventosVistos.size > MAX_EVENTOS_CACHE) {
+    const primeiro = eventosVistos.values().next().value;
+    if (primeiro !== undefined) eventosVistos.delete(primeiro);
+  }
+  return true;
+}
+
+/**
+ * Constrói a resposta SMS/WhatsApp a partir do painel operacional (Open-Meteo).
+ * Sem texto → AJUDA; falha meteo → mensagem curta de indisponibilidade.
+ */
+export async function textoRespostaOperacional(comando: string): Promise<string> {
+  const pedido = (comando.trim() || 'AJUDA').toUpperCase();
+  // AJUDA não precisa de Open-Meteo — evita latência e falhas no help.
+  if (pedido === 'AJUDA' || pedido === 'HELP') {
+    return truncarSms('FitoSmart SMS: JANELA | DELTAT | CHUVA | PRESSAO | AJUDA');
+  }
+  try {
+    const painel = await obterPainelOperacional();
+    return responderSms(pedido, painel);
+  } catch {
+    return truncarSms('FitoSmart: dados meteorologicos indisponiveis. Tente mais tarde.');
+  }
+}
+
 async function processarInbound(evento: EventoInboundZavu): Promise<void> {
   if (evento.type !== 'message.inbound') return;
+  if (!marcarEventoProcessado(evento.id)) return;
 
   const { senderId, data } = evento;
   const canal = data.channel;
@@ -77,23 +112,22 @@ async function processarInbound(evento: EventoInboundZavu): Promise<void> {
     return;
   }
 
+  const resposta = await textoRespostaOperacional(data.text ?? '');
   const zavu = new Zavudev({ apiKey });
-  const texto =
-    data.text?.trim() ?
-      `FitoSmart: recebemos a sua mensagem (${data.text.trim().slice(0, 80)}).`
-    : 'FitoSmart: recebemos a sua mensagem.';
 
   await zavu.messages.send({
     to,
     channel: canal,
-    text: texto.slice(0, 160),
+    text: resposta,
     'Zavu-Sender': senderId,
+    idempotencyKey: evento.id ? `zavu-reply-${evento.id}` : undefined,
   });
 }
 
 /**
- * Webhook Zavu: responde no mesmo canal e sender do inbound.
+ * Webhook Zavu: responde no mesmo canal com dados Open-Meteo (JANELA/DELTAT/…).
  * Requer corpo raw (express.raw) — a assinatura cobre os bytes exactos.
+ * Desactive o agent LLM no sender para não haver resposta dupla.
  */
 export async function zavuWebhookHandler(req: Request, res: Response): Promise<void> {
   const corpoRaw = Buffer.isBuffer(req.body)

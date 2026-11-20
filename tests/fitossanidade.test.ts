@@ -20,6 +20,7 @@ import {
   truncarSms,
   type PainelOperacional,
 } from '../src/operacional';
+import { textoRespostaOperacional } from '../src/zavu-webhook';
 
 const app = criarApp();
 
@@ -356,7 +357,7 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
     });
   });
 
-  test('T15 [Campo]: Delta-T, Markov e SMS 2G para janela de pulverização', () => {
+  test('T15 [Campo]: Delta-T, Markov e SMS 2G para janela de pulverização', async () => {
     const delta = calcularDeltaT(30, 45);
     expect(delta).toBeGreaterThan(2);
     expect(classificarEstadoHidrico(3, 0.1)).toBe('CHUVOSO');
@@ -394,5 +395,9 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
 
     expect(escaparXmlSms('a<b>&"c"')).toBe('a&lt;b&gt;&amp;&quot;c&quot;');
     expect(montarTwiml('JANELA ok')).toContain('<Response><Message>JANELA ok</Message></Response>');
+
+    const ajuda = await textoRespostaOperacional('AJUDA');
+    expect(ajuda).toMatch(/JANELA/);
+    expect(ajuda.length).toBeLessThanOrEqual(160);
   });
 });

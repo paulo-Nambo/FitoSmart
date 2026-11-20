@@ -94,7 +94,7 @@ export const ResumoOcorrencias = memo(function ResumoOcorrencias({
   return (
     <section className="resumo" aria-label="Resumo das ocorrências">
       {ROTULOS_RESUMO.map((item) => (
-        <article key={item.chave}>
+        <article key={item.chave} className={`resumo-card resumo-${item.chave.toLowerCase()}`}>
           <strong className="numero">{contagem[item.chave]}</strong>
           <span>{item.rotulo}</span>
         </article>

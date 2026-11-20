@@ -41,6 +41,7 @@ const GraficoCulturas = memo(function GraficoCulturas({ ocorrencias }: { ocorren
         animationDuration={reduzido ? 0 : 1100}
         revealSignature={assinatura}
         aspectRatio="2.2 / 1"
+        className="painel-chart"
       >
         <Grid horizontal />
         <Bar
@@ -50,7 +51,7 @@ const GraficoCulturas = memo(function GraficoCulturas({ ocorrencias }: { ocorren
           showValue
           valueLabelFormatter={(valor) => NUMERO.format(valor)}
         />
-        <BarXAxis />
+        <BarXAxis showAllLabels />
         <ChartTooltip
           rows={(ponto) => [
             {
@@ -83,16 +84,28 @@ const IndicadoresChave = memo(function IndicadoresChave({ ocorrencias }: { ocorr
         : Math.round((ocorrencias.filter((item) => item.status === 'VALIDADA').length / total) * 100);
 
     return [
-      { rotulo: 'Confiança média', valor: `${PERCENTAGEM.format(confiancaMedia)}\u00a0%` },
-      { rotulo: 'Taxa validada', valor: `${PERCENTAGEM.format(taxaValidada)}\u00a0%` },
-      { rotulo: 'Últimas 24 h', valor: NUMERO.format(ultimas24h) },
+      {
+        id: 'confianca',
+        rotulo: 'Confiança média',
+        valor: `${PERCENTAGEM.format(confiancaMedia)}\u00a0%`,
+      },
+      {
+        id: 'taxa',
+        rotulo: 'Taxa validada',
+        valor: `${PERCENTAGEM.format(taxaValidada)}\u00a0%`,
+      },
+      {
+        id: 'recentes',
+        rotulo: 'Últimas 24 h',
+        valor: NUMERO.format(ultimas24h),
+      },
     ];
   }, [ocorrencias]);
 
   return (
     <section className="resumo resumo-chave" aria-label="Indicadores principais">
       {indicadores.map((item) => (
-        <article key={item.rotulo}>
+        <article key={item.id} className={`resumo-card resumo-kpi resumo-kpi-${item.id}`}>
           <strong className="numero">{item.valor}</strong>
           <span>{item.rotulo}</span>
         </article>
@@ -108,6 +121,9 @@ export const PainelEstatisticas = memo(function PainelEstatisticas({
 }) {
   return (
     <div className="painel-estatisticas">
+      <p className="painel-intro">
+        Visão rápida do estado das ocorrências e da actividade recente.
+      </p>
       <ResumoOcorrencias ocorrencias={ocorrencias} />
       <IndicadoresChave ocorrencias={ocorrencias} />
       <div className="painel-grelha">

@@ -838,6 +838,14 @@ h2.grupo-rotulo {
 
 .cartao { padding: 1.5rem 1.6rem 1.65rem; }
 
+.painel-intro {
+  margin: -0.15rem 0 0.15rem;
+  color: var(--mutado);
+  font-size: 0.92rem;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
 .resumo {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -852,16 +860,37 @@ h2.grupo-rotulo {
 
 .painel-estatisticas {
   display: grid;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
-.resumo article {
+.resumo article,
+.resumo-card {
+  position: relative;
+  overflow: hidden;
   background: var(--papel);
   border: 1px solid var(--linha);
   border-radius: 12px;
   padding: 0.95rem 1rem;
   box-shadow: none;
 }
+
+.resumo-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--linha-forte);
+}
+
+.resumo-total::before { background: var(--folha-escura); }
+.resumo-triada::before { background: var(--folha); }
+.resumo-encaminhada::before { background: var(--ambar); }
+.resumo-validada::before { background: #175cd3; }
+.resumo-kpi-confianca::before { background: #0f766e; }
+.resumo-kpi-taxa::before { background: #175cd3; }
+.resumo-kpi-recentes::before { background: #7c3aed; }
 
 .resumo strong {
   display: block;
@@ -872,7 +901,14 @@ h2.grupo-rotulo {
   font-variant-numeric: tabular-nums;
 }
 
-.resumo span { color: var(--mutado); font-size: 0.8rem; font-weight: 500; }
+.resumo span {
+  display: block;
+  margin-top: 0.28rem;
+  color: var(--mutado);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
 
 .painel-grelha {
   display: grid;
@@ -887,6 +923,8 @@ h2.grupo-rotulo {
   background: var(--papel);
   border: 1px solid var(--linha);
   border-radius: 14px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .painel-grafico h2 {
@@ -2472,9 +2510,59 @@ input[aria-invalid='true']:focus-visible {
   }
   .gestao-selo { justify-self: start; margin-top: 0.15rem; }
   .gestao-accao { grid-template-columns: 1fr auto; }
-  .resumo,
-  .resumo-chave { grid-template-columns: 1fr 1fr; }
-  .painel-grelha { grid-template-columns: 1fr; }
+  .painel-estatisticas { gap: 0.75rem; }
+  .painel-intro {
+    margin: 0;
+    font-size: 0.88rem;
+  }
+  .resumo {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem;
+  }
+  .resumo-chave {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+    margin-bottom: 0.35rem;
+  }
+  .resumo-card {
+    padding: 0.8rem 0.75rem 0.75rem 0.9rem;
+    border-radius: 11px;
+  }
+  .resumo strong {
+    font-size: 1.35rem;
+  }
+  .resumo span {
+    font-size: 0.72rem;
+  }
+  .resumo-chave .resumo-card {
+    text-align: left;
+    padding: 0.7rem 0.55rem 0.65rem 0.75rem;
+  }
+  .resumo-chave strong {
+    font-size: 1.15rem;
+  }
+  .resumo-chave span {
+    font-size: 0.68rem;
+  }
+  .painel-grelha {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  .painel-grafico {
+    padding: 0.95rem 0.9rem 1rem;
+  }
+  .painel-grafico h2 {
+    font-size: 0.98rem;
+    margin-bottom: 0.45rem;
+  }
+  .painel-grafico > div,
+  .painel-grafico .painel-chart {
+    aspect-ratio: 1.55 / 1 !important;
+  }
+  .painel-grafico .text-chart-label,
+  .painel-grafico .text-xs {
+    font-size: 0.65rem !important;
+  }
   .item-com-foto { grid-template-columns: 4.5rem 1fr; gap: 0.75rem; }
   .item-fotos {
     grid-template-columns: 1fr;
@@ -4421,8 +4509,26 @@ input[aria-invalid='true']:focus-visible {
     border-radius: 12px;
   }
 
-  .resumo,
-  .resumo-chave,
+  /* Painel: manter 2×2 e KPIs em fila — evita coluna única demasiado alta */
+  .resumo {
+    grid-template-columns: 1fr 1fr;
+  }
+  .resumo-chave {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .resumo-card {
+    padding: 0.75rem 0.65rem 0.7rem 0.8rem;
+  }
+  .resumo strong { font-size: 1.28rem; }
+  .resumo-chave strong { font-size: 1.05rem; }
+  .resumo span,
+  .resumo-chave span {
+    font-size: 0.66rem;
+  }
+  .painel-grafico > div {
+    aspect-ratio: 1.35 / 1 !important;
+  }
+
   .item-factos,
   .item-kpis,
   .item-fila .item-factos-fila {
@@ -4493,9 +4599,12 @@ input[aria-invalid='true']:focus-visible {
 
 /* Tablets em retrato: grelhas intermédias */
 @media (min-width: 481px) and (max-width: 800px) {
-  .resumo,
-  .resumo-chave {
+  .resumo {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .resumo-chave {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .tempo-grelha {

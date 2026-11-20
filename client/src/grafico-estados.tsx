@@ -15,7 +15,7 @@ function contarEstados(ocorrencias: Ocorrencia[]) {
   for (const item of ocorrencias) totais[item.status] += 1;
   return [
     { estado: 'Triadas', total: totais.TRIADA },
-    { estado: 'Encaminhadas', total: totais.ENCAMINHADA },
+    { estado: 'Encaminh.', total: totais.ENCAMINHADA },
     { estado: 'Validadas', total: totais.VALIDADA },
   ];
 }
@@ -34,6 +34,7 @@ export const GraficoEstados = memo(function GraficoEstados({ ocorrencias }: { oc
         animationDuration={reduzido ? 0 : 1100}
         revealSignature={assinatura}
         aspectRatio="2.2 / 1"
+        className="painel-chart"
       >
         <Grid horizontal />
         <Bar
@@ -43,7 +44,7 @@ export const GraficoEstados = memo(function GraficoEstados({ ocorrencias }: { oc
           showValue
           valueLabelFormatter={(valor) => NUMERO.format(valor)}
         />
-        <BarXAxis />
+        <BarXAxis showAllLabels />
         <ChartTooltip
           rows={(ponto) => [
             {

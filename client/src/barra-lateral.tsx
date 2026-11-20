@@ -213,6 +213,34 @@ function lerBarraRecolhida(): boolean {
   }
 }
 
+const ICONE_MENU = (
+  <span className="barra-recolher-icone" aria-hidden="true">
+    <svg viewBox="0 0 24 24">
+      <path
+        d="M5 7h14M5 12h14M5 17h14"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.85"
+        strokeLinecap="round"
+      />
+    </svg>
+  </span>
+);
+
+const ICONE_FECHAR = (
+  <span className="barra-recolher-icone" aria-hidden="true">
+    <svg viewBox="0 0 24 24">
+      <path
+        d="M7 7l10 10M17 7L7 17"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.85"
+        strokeLinecap="round"
+      />
+    </svg>
+  </span>
+);
+
 function iniciaisNome(nome: string | undefined, perfil: Sessao['perfil']): string {
   const texto = (nome ?? '').trim();
   if (!texto) return INICIAIS_PERFIL[perfil];
@@ -423,28 +451,60 @@ export const BarraLateral = memo(function BarraLateral({
   aoSair,
 }: BarraLateralProps) {
   const [recolhida, setRecolhida] = useState(lerBarraRecolhida);
+  const [menuMovelAberto, setMenuMovelAberto] = useState(false);
   const [ecraLargo, setEcraLargo] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(min-width: 801px)').matches : true,
   );
+  const botaoMenu = useRef<HTMLButtonElement>(null);
   const compacta = recolhida && ecraLargo;
+  const movel = !ecraLargo;
 
   useEffect(() => {
     const consulta = window.matchMedia('(min-width: 801px)');
-    const sincronizar = () => setEcraLargo(consulta.matches);
+    const sincronizar = () => {
+      const largo = consulta.matches;
+      setEcraLargo(largo);
+      if (largo) setMenuMovelAberto(false);
+    };
     sincronizar();
     consulta.addEventListener('change', sincronizar);
     return () => consulta.removeEventListener('change', sincronizar);
   }, []);
 
+  useEffect(() => {
+    if (!movel || !menuMovelAberto) return;
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const fecharTecla = (evento: KeyboardEvent) => {
+      if (evento.key !== 'Escape') return;
+      setMenuMovelAberto(false);
+      botaoMenu.current?.focus();
+    };
+    document.addEventListener('keydown', fecharTecla);
+    return () => {
+      document.body.style.overflow = anterior;
+      document.removeEventListener('keydown', fecharTecla);
+    };
+  }, [movel, menuMovelAberto]);
+
+  function fecharMenuMovel() {
+    setMenuMovelAberto(false);
+  }
+
   function seguir(evento: MouseEvent<HTMLAnchorElement>, id: MenuId) {
     if (evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey || evento.button !== 0) return;
     evento.preventDefault();
+    if (movel) fecharMenuMovel();
     startTransition(() => {
       aoEscolher(id);
     });
   }
 
   function alternarRecolha() {
+    if (movel) {
+      setMenuMovelAberto((atual) => !atual);
+      return;
+    }
     setRecolhida((atual) => {
       const proximo = !atual;
       try {
@@ -485,50 +545,85 @@ export const BarraLateral = memo(function BarraLateral({
     );
   }
 
+  const classesBarra = [
+    'barra',
+    compacta ? 'barra-recolhida' : '',
+    movel ? 'barra-movel' : '',
+    movel && menuMovelAberto ? 'barra-movel-aberta' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <aside
-      className={compacta ? 'barra barra-recolhida' : 'barra'}
+      className={classesBarra}
       aria-label="Navegação da aplicação"
       data-recolhida={compacta ? 'true' : 'false'}
+      data-movel-aberta={movel && menuMovelAberto ? 'true' : 'false'}
     >
       <header className="barra-topo">
         <div className="barra-marca">{marca}</div>
         <button
+          ref={botaoMenu}
           type="button"
           className="barra-recolher"
-          aria-expanded={!compacta}
+          aria-expanded={movel ? menuMovelAberto : !compacta}
           aria-controls="barra-navegacao"
-          aria-label={compacta ? 'Expandir menu lateral' : 'Recolher menu lateral'}
-          title={compacta ? 'Expandir' : 'Recolher'}
+          aria-label={
+            movel
+              ? menuMovelAberto
+                ? 'Fechar menu'
+                : 'Abrir menu'
+              : compacta
+                ? 'Expandir menu lateral'
+                : 'Recolher menu lateral'
+          }
+          title={
+            movel
+              ? menuMovelAberto
+                ? 'Fechar'
+                : 'Menu'
+              : compacta
+                ? 'Expandir'
+                : 'Recolher'
+          }
           onClick={alternarRecolha}
         >
-          {ICONE_RECOLHER}
+          {movel ? (menuMovelAberto ? ICONE_FECHAR : ICONE_MENU) : ICONE_RECOLHER}
         </button>
       </header>
-      <nav id="barra-navegacao" className="barra-nav" aria-label="Menu principal">
-        {compacta ? null : (
-          <h2 className="grupo-rotulo">Menu</h2>
-        )}
-        {principal.map((item) => ligacao(item))}
-        {administracao.length > 0 ? (
-          <div className="grupo-admin">
-            {compacta ? null : <h2 className="grupo-rotulo">Administração</h2>}
-            {administracao.map((item) => ligacao(item))}
-          </div>
-        ) : null}
-      </nav>
-      <footer className="barra-utilizador">
-        <MenuConta
-          perfil={perfil}
-          email={email}
-          nome={nome}
-          organizacao={organizacao}
-          aoEditarPerfil={aoEditarPerfil}
-          aoAlterarSenha={aoAlterarSenha}
-          aoSair={aoSair}
-          compacto={compacta}
+      {movel && menuMovelAberto ? (
+        <button
+          type="button"
+          className="barra-fundo"
+          aria-label="Fechar menu"
+          onClick={fecharMenuMovel}
         />
-      </footer>
+      ) : null}
+      <div className="barra-gaveta">
+        <nav id="barra-navegacao" className="barra-nav" aria-label="Menu principal">
+          {compacta ? null : <h2 className="grupo-rotulo">Menu</h2>}
+          {principal.map((item) => ligacao(item))}
+          {administracao.length > 0 ? (
+            <div className="grupo-admin">
+              {compacta ? null : <h2 className="grupo-rotulo">Administração</h2>}
+              {administracao.map((item) => ligacao(item))}
+            </div>
+          ) : null}
+        </nav>
+        <footer className="barra-utilizador">
+          <MenuConta
+            perfil={perfil}
+            email={email}
+            nome={nome}
+            organizacao={organizacao}
+            aoEditarPerfil={aoEditarPerfil}
+            aoAlterarSenha={aoAlterarSenha}
+            aoSair={aoSair}
+            compacto={compacta}
+          />
+        </footer>
+      </div>
     </aside>
   );
 });

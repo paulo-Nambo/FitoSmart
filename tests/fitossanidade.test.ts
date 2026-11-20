@@ -13,7 +13,9 @@ import {
   avaliarJanela,
   calcularDeltaT,
   classificarEstadoHidrico,
+  escaparXmlSms,
   estimarMatrizTransicao,
+  montarTwiml,
   responderSms,
   truncarSms,
   type PainelOperacional,
@@ -389,5 +391,8 @@ describe('Suíte de 10 Testes do MVP Fitossanitário (UEM - Eng. Software)', () 
     expect(sms).toMatch(/FitoSmart/);
     expect(sms.length).toBeLessThanOrEqual(160);
     expect(responderSms('AJUDA', painelFake)).toMatch(/JANELA/);
+
+    expect(escaparXmlSms('a<b>&"c"')).toBe('a&lt;b&gt;&amp;&quot;c&quot;');
+    expect(montarTwiml('JANELA ok')).toContain('<Response><Message>JANELA ok</Message></Response>');
   });
 });

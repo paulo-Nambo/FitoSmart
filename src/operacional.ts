@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import dns from 'dns';
 import type { Request, Response } from 'express';
 
@@ -6,6 +7,79 @@ try {
   dns.setDefaultResultOrder('ipv4first');
 } catch {
   /* Node antigo */
+}
+
+/** Escape XML para corpo TwiML (Twilio). */
+export function escaparXmlSms(texto: string): string {
+  return texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/** Resposta SMS no formato TwiML que o Twilio espera. */
+export function montarTwiml(mensagem: string): string {
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>' +
+    `<Response><Message>${escaparXmlSms(mensagem)}</Message></Response>`
+  );
+}
+
+/** Pedido típico do webhook Twilio (form-urlencoded com Body + Sid). */
+export function ehPedidoTwilio(req: Request): boolean {
+  const body = req.body ?? {};
+  const temBody = typeof body.Body === 'string';
+  const temSid =
+    typeof body.MessageSid === 'string' ||
+    typeof body.SmsSid === 'string' ||
+    typeof body.AccountSid === 'string';
+  const formato = String(req.query.formato ?? '').toLowerCase();
+  if (formato === 'twilio' || formato === 'twiml') return true;
+  return temBody && temSid;
+}
+
+function urlAssinaturaTwilio(req: Request): string {
+  const proto = (req.get('x-forwarded-proto') ?? req.protocol ?? 'https').split(',')[0].trim();
+  const host = (req.get('x-forwarded-host') ?? req.get('host') ?? '').split(',')[0].trim();
+  return `${proto}://${host}${req.originalUrl}`;
+}
+
+/** Valida X-Twilio-Signature quando TWILIO_AUTH_TOKEN está definido. */
+export function assinaturaTwilioValida(req: Request, authToken: string): boolean {
+  const assinatura = req.get('x-twilio-signature') ?? '';
+  if (!assinatura) return false;
+  const params = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
+  const base =
+    urlAssinaturaTwilio(req) +
+    Object.keys(params)
+      .sort()
+      .map((chave) => `${chave}${params[chave] ?? ''}`)
+      .join('');
+  const esperado = crypto.createHmac('sha1', authToken).update(base, 'utf8').digest('base64');
+  try {
+    const a = Buffer.from(assinatura);
+    const b = Buffer.from(esperado);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+function extrairTextoSms(req: Request): string {
+  const body = req.body ?? {};
+  if (typeof body.texto === 'string') return body.texto;
+  if (typeof body.Body === 'string') return body.Body;
+  if (typeof body.text === 'string') return body.text;
+  return '';
+}
+
+function extrairRemetenteSms(req: Request): string | null {
+  const body = req.body ?? {};
+  if (typeof body.de === 'string') return body.de;
+  if (typeof body.From === 'string') return body.From;
+  return null;
 }
 
 /** Maputo / UEM — alinhado à previsão do cliente. */
@@ -488,43 +562,60 @@ export async function operacionalHandler(_req: Request, res: Response): Promise<
 }
 
 export async function smsHandler(req: Request, res: Response): Promise<void> {
+  const twilio = ehPedidoTwilio(req);
+  const tokenTwilio = process.env.TWILIO_AUTH_TOKEN?.trim();
   const segredo = process.env.SMS_WEBHOOK_SECRET?.trim();
-  if (segredo) {
-    const recebido = req.get('x-fitosmart-sms') ?? '';
+
+  if (tokenTwilio && twilio) {
+    if (!assinaturaTwilioValida(req, tokenTwilio)) {
+      res.status(401).type('text/plain').send('Assinatura Twilio inválida');
+      return;
+    }
+  } else if (segredo) {
+    const recebido =
+      req.get('x-fitosmart-sms') ??
+      (typeof req.query.secret === 'string' ? req.query.secret : '') ??
+      '';
     if (recebido !== segredo) {
-      res.status(401).json({ erro: 'Webhook SMS não autorizado' });
+      if (twilio) {
+        res.status(401).type('text/xml').send(montarTwiml('FitoSmart: webhook nao autorizado.'));
+      } else {
+        res.status(401).json({ erro: 'Webhook SMS não autorizado' });
+      }
       return;
     }
   }
 
-  const texto =
-    typeof req.body?.texto === 'string'
-      ? req.body.texto
-      : typeof req.body?.Body === 'string'
-        ? req.body.Body
-        : typeof req.body?.text === 'string'
-          ? req.body.text
-          : '';
-
+  const texto = extrairTextoSms(req);
   if (!texto.trim()) {
+    if (twilio) {
+      res
+        .status(200)
+        .type('text/xml')
+        .send(montarTwiml('FitoSmart SMS: JANELA | DELTAT | CHUVA | PRESSAO | AJUDA'));
+      return;
+    }
     res.status(400).json({ erro: 'Envie texto / Body com o comando SMS' });
     return;
   }
 
-  try {
-    const painel = await obterPainelOperacional();
-    const resposta = responderSms(texto, painel);
-    res.status(200).json({
+  const enviar = (resposta: string, estado: number) => {
+    if (twilio) {
+      res.status(estado).type('text/xml').send(montarTwiml(resposta));
+      return;
+    }
+    res.status(estado).json({
       resposta,
       caracteres: resposta.length,
       canal: 'SMS_2G',
-      de: typeof req.body?.de === 'string' ? req.body.de : req.body?.From ?? null,
+      de: extrairRemetenteSms(req),
     });
+  };
+
+  try {
+    const painel = await obterPainelOperacional();
+    enviar(responderSms(texto, painel), 200);
   } catch {
-    res.status(502).json({
-      resposta: truncarSms('FitoSmart: dados meteorologicos indisponiveis. Tente mais tarde.'),
-      caracteres: 0,
-      canal: 'SMS_2G',
-    });
+    enviar(truncarSms('FitoSmart: dados meteorologicos indisponiveis. Tente mais tarde.'), 502);
   }
 }

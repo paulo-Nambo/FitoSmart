@@ -1,0 +1,117 @@
+{
+  "version": 2,
+  "skills": {
+    "ai-agent": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/ai-agent/SKILL.md",
+      "computedHash": "fceb32f20065dba8a0b3023685c015fd177c826e946409a5a5bf1b071369a994"
+    },
+    "api-v2": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/api-v2/SKILL.md",
+      "computedHash": "8b086d7b7542386921bee616a97a38cea5a64b5653c62236928d37df0b4c0178"
+    },
+    "broadcast-campaign": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/broadcast-campaign/SKILL.md",
+      "computedHash": "6a7aaaac4f19f5af6d2862494bd2ae83bbcf7687af1ad836bc1b3fb2766585ed"
+    },
+    "channel-setup": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/channel-setup/SKILL.md",
+      "computedHash": "6885dc6edc925bf548e60c23183e8320c1bde97012787f9aae099e44a499a9a4"
+    },
+    "contacts-management": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/contacts-management/SKILL.md",
+      "computedHash": "7d6eb5e001d7194cceec927770e2ab41c3444422132bfdf1b9b331f9a949ee1d"
+    },
+    "conversations": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/conversations/SKILL.md",
+      "computedHash": "d41adf9ac65081a7501b87369d332d9c2f112deb63a87c2bb0c0627bf9f2da12"
+    },
+    "eve-compat": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/eve-compat/SKILL.md",
+      "computedHash": "6d80158b93dd7a2b7cf00d9b45eaac8cbded513b914222b93c757ea954ac4d44"
+    },
+    "functions": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/functions/SKILL.md",
+      "computedHash": "13162fcd8a0c00bddb671a65dc3566aaf1663b913e46e2065bdf26464e7fcfeb"
+    },
+    "memory": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/memory/SKILL.md",
+      "computedHash": "8b6dd797818ff278c2e123e8c14f5ee5c315b20844996193f9ca38e8dfdca9d9"
+    },
+    "phone-numbers": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/phone-numbers/SKILL.md",
+      "computedHash": "8ba29c4f5abd7cd9c0158b0b9213b517b33e610b1cf4a2ff894c8fe838c2e993"
+    },
+    "sandboxes": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/sandboxes/SKILL.md",
+      "computedHash": "01f4a42a409b44120af2dfe15a8ad516da1f43ecf990d51a4dac1035078a100a"
+    },
+    "send-message": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/send-message/SKILL.md",
+      "computedHash": "70872a3af401cd46d9bd7780078d27ed7ba14d0e283423f8cd9a048c8996fa88"
+    },
+    "voice-agent": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/voice-agent/SKILL.md",
+      "computedHash": "c9519fc913d1ee957c4366e1f5138610ab7f75cd702bced2b2c4061161092fd2"
+    },
+    "webhook-setup": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/webhook-setup/SKILL.md",
+      "computedHash": "3e34ad0078fb5d9dfa97885a32784bbd5e28889ba691d365f28243e3dd7e1da3"
+    },
+    "whatsapp-templates": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/whatsapp-templates/SKILL.md",
+      "computedHash": "419582c1e88b21078d1fa6d790cbb867d52d3e968f6fc8c3e1b3caf0bdcc1bb3"
+    },
+    "zavu-rules": {
+      "source": "zavudev/zavu-skills",
+      "commit": "049b357264fe0cbbb9d877a9e699deee0093f464",
+      "sourceType": "github",
+      "skillPath": "skills/zavu-rules/SKILL.md",
+      "computedHash": "7cb1f5982442a523375181f01d4550fdee25d4c74491a94a0cb191940dd951d8"
+    }
+  }
+}

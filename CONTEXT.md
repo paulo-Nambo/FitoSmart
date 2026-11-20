@@ -81,5 +81,5 @@ Painel com pressão atmosférica (hPa), Delta-T, mapa de calor regional de chuva
 _Avoid_: Dashboard IoT genérico, sensores de máquina
 
 **Alerta SMS 2G**:
-Resposta textual curta (≤160 caracteres) a comandos JANELA / DELTAT / CHUVA / PRESSAO, para acessibilidade em redes 2G sem app.
+Resposta textual curta (≤160 caracteres) a comandos JANELA / DELTAT / CHUVA / PRESSAO, para acessibilidade em redes 2G sem app. Webhook `POST /api/sms`: JSON (`{texto}`) ou Twilio (form `Body`/`From` → TwiML). Segredo opcional `SMS_WEBHOOK_SECRET` (header `x-fitosmart-sms` ou `?secret=`); `TWILIO_AUTH_TOKEN` valida `X-Twilio-Signature`.
 _Avoid_: Push, WhatsApp, notificação in-app

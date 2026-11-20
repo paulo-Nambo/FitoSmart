@@ -25,6 +25,7 @@
     "@visx/responsive": "^4.0.0",
     "@visx/scale": "^4.0.0",
     "@visx/shape": "^4.0.0",
+    "@zavudev/sdk": "^0.65.1",
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
     "d3-array": "^3.2.4",

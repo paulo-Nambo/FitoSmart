@@ -1,0 +1,102 @@
+---
+name: zavu-rules
+description: Foundational context for the Zavu unified messaging API. Always loaded.
+---
+
+# Zavu API Context
+
+Zavu is a unified multi-channel messaging API. One API to send messages via SMS, WhatsApp, Telegram, Email, Instagram, and Voice, with automatic channel selection and fallback.
+
+## SDK Ecosystem
+
+| Language | Package | Install |
+|----------|---------|---------|
+| TypeScript | `@zavudev/sdk` | `npm add @zavudev/sdk` |
+
+`@zavudev/sdk` is the only maintained SDK. It covers API v1 and API v2 (`client.v2`). The Python, Go, PHP, Ruby, Java, Kotlin and C# packages are no longer updated: they have no API v2 and miss v1 fields added since September 2026. Do not use them in new code. From any language other than TypeScript, call the REST API directly (`https://api.zavu.dev`, `Authorization: Bearer $ZAVUDEV_API_KEY`) or generate a client from the OpenAPI specs at `https://docs.zavu.dev/openapi.json` (v1) and `https://docs.zavu.dev/api-reference/v2/openapi.json` (v2).
+
+## Tooling
+
+| Tool | Purpose | Install |
+|------|---------|---------|
+| `zavu` CLI | Interact with the API from the terminal; manage Zavu Functions (serverless TypeScript on Zavu Cloud) | `npx zavudev@latest` (no install), or `npm install -g zavudev` |
+| `@zavudev/functions` | Runtime package for Zavu Functions. Provides `defineAgent`, `defineTool`, `defineFunction` declarative APIs. | Pre-installed in the function runtime — `import { defineAgent } from "@zavudev/functions"` (no install needed). |
+
+The CLI is the primary interface for **Zavu Functions**: serverless TypeScript that runs on Zavu Cloud and lets you declare AI agents + tool handlers in code. See the `functions` skill for full coverage.
+
+### TypeScript Init
+
+```typescript
+import Zavudev from '@zavudev/sdk';
+
+const zavu = new Zavudev({
+  apiKey: process.env['ZAVUDEV_API_KEY'],
+});
+```
+
+## Authentication
+
+- Environment variable: `ZAVUDEV_API_KEY`
+- Key prefixes: `zv_live_` (production), `zv_test_` (sandbox)
+- Header: `Authorization: Bearer <api_key>`
+- Sender override header: `Zavu-Sender: <sender_id>`
+
+## Core Conventions
+
+- **Phone numbers**: Always E.164 format (`+14155551234`)
+- **Channels**: `auto`, `sms`, `sms_oneway`, `whatsapp`, `telegram`, `email`, `instagram`, `messenger`, `voice`
+- **Message types**: `text`, `image`, `video`, `audio`, `document`, `sticker`, `location`, `contact`, `buttons`, `list`, `cta_url`, `request_contact_info`, `location_request`, `reaction`, `template`
+- **Pagination**: Cursor-based. All list endpoints return `{ items: [...], nextCursor: string | null }`
+- **Idempotency**: Use `idempotencyKey` on send to prevent duplicate messages
+
+## Error Handling
+
+### TypeScript
+
+```typescript
+import Zavudev, { APIError } from '@zavudev/sdk';
+
+try {
+  await zavu.messages.send({ to: "+14155551234", text: "Hello" });
+} catch (error) {
+  if (error instanceof APIError) {
+    console.error(error.status, error.message);
+  }
+}
+```
+
+## Key Business Rules
+
+1. **WhatsApp 24h window**: Free-form messages require an open conversation window (user messaged you in last 24h). Use template messages to initiate conversations outside the window.
+2. **Verification raises limits; it is not permission to send**: an account sends on every channel, to any destination, from its first minute. Identity verification, a saved payment method, a settled deposit or a paid plan raise the daily ceilings, which return `429 daily_limit_exceeded` when spent. Business verification (KYB) gates 10DLC registration, which every US and Canadian (+1) SMS destination needs (`403 ten_dlc_required`); no channel needs it to send, `sms_oneway` included. Every `sms`, `sms_oneway`, `email` and `voice` message is read before it is sent and can be held briefly for review (it stays `queued`) or refused (`RISK_BLOCKED`, `RISK_REJECTED`, `RISK_REVIEW_EXPIRED` on the failed message); repeated refusals suspend an account's sending (`403 sending_suspended`). See the `send-message` skill.
+3. **URL verification**: SMS, one-way SMS and voice messages containing URLs require those URLs to be verified (pre-verify with `/v1/urls`; an unknown URL holds the message in `pending_url_verification` while it is checked). Email, WhatsApp, Telegram, Instagram and Messenger messages are not checked.
+4. **URL shorteners blocked**: bit.ly, t.co, etc. are always blocked. Use full destination URLs.
+5. **Channel `auto`**: picks the first channel the sender has configured that the recipient's address can receive on, in a fixed preference order. It does not consider cost. Cost-based, per-contact selection exists only on broadcasts sent with channel `smart`.
+6. **Fallback**: If WhatsApp fails, text and template messages can fall back to SMS. On by default when Zavu picks the channel (`channel` omitted or `auto`); off when `channel` is set explicitly, unless `fallbackEnabled: true`.
+7. **Voice agents**: An agent can answer and place phone calls when its `voice` config has `enabled: true`. Place outbound calls via `/v1/calls` and fetch transcripts from `/v1/calls/{callId}`. Requires a live key. See the `ai-agent` skill.
+
+## MCP Server
+
+For direct API execution from AI assistants:
+
+```bash
+claude mcp add zavudev --scope user \
+  -e ZAVUDEV_API_KEY=$ZAVUDEV_API_KEY -- npx -y @zavudev/sdk-mcp
+```
+
+Tools available: `search_docs` (search API docs), `execute` (run TypeScript against authenticated client).
+
+## CLI
+
+The `zavudev/cli` package provides terminal access to all API operations.
+
+## Rate Limits
+
+Check `X-RateLimit-Remaining` header. Use `.withResponse()` to access response headers.
+
+## Message Statuses
+
+`queued` -> `sending` -> `sent` -> `delivered` -> `read` (success path)
+`queued` -> `sending` -> `failed` (failure path)
+`received` (inbound messages)
+`pending_url_verification` (message with URLs awaiting verification)

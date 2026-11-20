@@ -26,6 +26,7 @@ import { diagnosticoHandler } from './diagnostico';
 import { guardarImagemHandler, servirImagemHandler } from './imagens';
 import { operacionalHandler, smsHandler } from './operacional';
 import { servirReferenciaHandler } from './referencias-http';
+import { zavuWebhookHandler } from './zavu-webhook';
 
 function limitePedidos(
   max: number,
@@ -70,7 +71,16 @@ export function criarApp() {
     }),
   );
 
+  // Zavu assina o corpo raw — tem de ficar antes de express.json().
+  app.post(
+    '/api/webhooks/zavu',
+    express.raw({ type: 'application/json', limit: '256kb' }),
+    zavuWebhookHandler,
+  );
+
   app.use(express.json({ limit: '16kb' }));
+  // Twilio e gateways SMS enviam application/x-www-form-urlencoded (Body, From, …).
+  app.use(express.urlencoded({ extended: false, limit: '16kb' }));
   const origensPadrao = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',

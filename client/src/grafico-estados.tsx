@@ -10,13 +10,19 @@ import { ChartTooltip } from '@/components/charts/tooltip/chart-tooltip';
 
 const NUMERO = new Intl.NumberFormat('pt');
 
+const COR_ESTADO = {
+  TRIADA: '#1a7a4c',
+  ENCAMINHADA: '#9a6700',
+  VALIDADA: '#175cd3',
+} as const;
+
 function contarEstados(ocorrencias: Ocorrencia[]) {
   const totais = { TRIADA: 0, ENCAMINHADA: 0, VALIDADA: 0 };
   for (const item of ocorrencias) totais[item.status] += 1;
   return [
-    { estado: 'Triadas', total: totais.TRIADA },
-    { estado: 'Encaminh.', total: totais.ENCAMINHADA },
-    { estado: 'Validadas', total: totais.VALIDADA },
+    { estado: 'Triadas', total: totais.TRIADA, cor: COR_ESTADO.TRIADA },
+    { estado: 'Encaminh.', total: totais.ENCAMINHADA, cor: COR_ESTADO.ENCAMINHADA },
+    { estado: 'Validadas', total: totais.VALIDADA, cor: COR_ESTADO.VALIDADA },
   ];
 }
 
@@ -39,6 +45,7 @@ export const GraficoEstados = memo(function GraficoEstados({ ocorrencias }: { oc
         <Grid horizontal />
         <Bar
           dataKey="total"
+          fillKey="cor"
           fill={chartCssVars.linePrimary}
           lineCap="round"
           showValue
@@ -48,7 +55,7 @@ export const GraficoEstados = memo(function GraficoEstados({ ocorrencias }: { oc
         <ChartTooltip
           rows={(ponto) => [
             {
-              color: chartCssVars.linePrimary,
+              color: typeof ponto.cor === 'string' ? ponto.cor : chartCssVars.linePrimary,
               label: 'Ocorrências',
               value: NUMERO.format(Number(ponto.total)),
             },

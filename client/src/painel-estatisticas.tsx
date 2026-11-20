@@ -16,6 +16,12 @@ const GraficoEstados = lazy(() =>
 const NUMERO = new Intl.NumberFormat('pt');
 const PERCENTAGEM = new Intl.NumberFormat('pt', { maximumFractionDigits: 0 });
 const CULTURAS = ['Milho', 'Mandioca', 'Feijão', 'Tomate'] as const;
+const COR_CULTURA: Record<(typeof CULTURAS)[number], string> = {
+  Milho: '#1a7a4c',
+  Mandioca: '#9a6700',
+  Feijão: '#175cd3',
+  Tomate: '#b42318',
+};
 const RESERVA = <p className="nota">A carregar o gráfico…</p>;
 const DIA_MS = 24 * 60 * 60 * 1000;
 
@@ -27,7 +33,11 @@ const GraficoCulturas = memo(function GraficoCulturas({ ocorrencias }: { ocorren
         contagem[item.cultura] += 1;
       }
     }
-    return CULTURAS.map((cultura) => ({ cultura, total: contagem[cultura] ?? 0 }));
+    return CULTURAS.map((cultura) => ({
+      cultura,
+      total: contagem[cultura] ?? 0,
+      cor: COR_CULTURA[cultura],
+    }));
   }, [ocorrencias]);
   const reduzido = useReducedMotion();
   const assinatura = dados.map((item) => item.total).join('-');
@@ -46,6 +56,7 @@ const GraficoCulturas = memo(function GraficoCulturas({ ocorrencias }: { ocorren
         <Grid horizontal />
         <Bar
           dataKey="total"
+          fillKey="cor"
           fill={chartCssVars.lineSecondary}
           lineCap="round"
           showValue
@@ -55,7 +66,7 @@ const GraficoCulturas = memo(function GraficoCulturas({ ocorrencias }: { ocorren
         <ChartTooltip
           rows={(ponto) => [
             {
-              color: chartCssVars.lineSecondary,
+              color: typeof ponto.cor === 'string' ? ponto.cor : chartCssVars.lineSecondary,
               label: 'Ocorrências',
               value: NUMERO.format(Number(ponto.total)),
             },

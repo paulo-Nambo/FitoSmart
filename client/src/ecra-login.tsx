@@ -183,9 +183,12 @@ function FormularioLogin({ aoEntrar, aoPrever }: EcraLoginProps) {
             id="email"
             name="username"
             type="email"
+            inputMode="email"
             autoComplete="username"
             autoCapitalize="none"
+            autoCorrect="off"
             spellCheck={false}
+            enterKeyHint="next"
             placeholder="nome@uem.mz"
             value={email}
             onChange={(evento) => setEmail(evento.target.value)}
@@ -200,9 +203,12 @@ function FormularioLogin({ aoEntrar, aoPrever }: EcraLoginProps) {
             name="password"
             type={mostrarSenha ? 'text' : 'password'}
             autoComplete="current-password"
+            autoCapitalize="none"
+            autoCorrect="off"
             spellCheck={false}
-            placeholder="Introduza a senha…"
+            enterKeyHint="go"
             minLength={6}
+            placeholder="Introduza a senha…"
             value={senha}
             onChange={(evento) => setSenha(evento.target.value)}
             required

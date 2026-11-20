@@ -156,6 +156,8 @@ const ListaOcorrencias = memo(function ListaOcorrencias({
             onChange={(evento) => setPesquisa(evento.target.value)}
             placeholder="Pesquisar cultura, parcela, sintoma…"
             autoComplete="off"
+            enterKeyHint="search"
+            inputMode="search"
           />
         </label>
         <BarraFiltro filtro={filtro} aoEscolher={escolher} contagens={contagens} />
